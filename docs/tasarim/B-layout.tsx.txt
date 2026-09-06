@@ -1,0 +1,59 @@
+import type { Metadata } from "next";
+import {
+  Bricolage_Grotesque,
+  IBM_Plex_Mono,
+  Instrument_Sans,
+} from "next/font/google";
+import "./globals.css";
+
+import { AuthSessionProvider } from "@/components/providers/session-provider";
+import { ThemeProvider } from "@/components/providers/theme-provider";
+import { Toaster } from "@/components/ui/sonner";
+
+// Arayüz yüzü. latin-ext, Türkçe için şart (ğ ş ı İ ö ü ç).
+const ui = Instrument_Sans({
+  variable: "--font-ui",
+  subsets: ["latin", "latin-ext"],
+});
+
+// Başlık yüzü: karakterli, gövde yüzüyle karışmasın diye ölçülü kullanılır.
+const display = Bricolage_Grotesque({
+  variable: "--font-display",
+  subsets: ["latin", "latin-ext"],
+});
+
+// Para yüzü: sabit genişlikli rakamlar tutar sütunlarını hizalar.
+const money = IBM_Plex_Mono({
+  variable: "--font-money",
+  weight: ["400", "500", "600"],
+  subsets: ["latin", "latin-ext"],
+});
+
+export const metadata: Metadata = {
+  title: "Bütçe Takip",
+  description: "Kişisel bütçe, yatırım ve maaş takip uygulaması",
+};
+
+export default function RootLayout({ children }: LayoutProps<"/">) {
+  return (
+    <html
+      lang="tr"
+      suppressHydrationWarning
+      className={`${ui.variable} ${display.variable} ${money.variable} h-full antialiased`}
+    >
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthSessionProvider>
+            {children}
+            <Toaster />
+          </AuthSessionProvider>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
+}

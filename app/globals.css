@@ -1,0 +1,277 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Modernist — "Bütçe Takip arayüz yeniden tasarımı" teslimatının tokenleri.
+ *
+ * Önceki palet sıcak pastel ve yuvarlak köşeliydi. Bu sistem tam tersini
+ * kuruyor: düz, mimari, beyaz üstünde kırmızı, 2px çizgiler, SIFIR köşe
+ * yarıçapı. Hiyerarşi gölgeyle değil TİPOGRAFİ ve ÇİZGİYLE kuruluyor —
+ * o yüzden kartların dolgusu zeminle aynı, onları ayıran tek şey 1px
+ * çerçeve. Kart dolgusunu zeminden ayırmaya çalışmayın; sistem öyle
+ * kurulmadı ve "yüzen kart" görüntüsü dilin dışında kalıyor.
+ *
+ * Kırmızı yalnızca iki iş yapıyor: birincil eylem ve negatif tutar.
+ * Dekoratif kırmızı yok — her kırmızı bir anlam taşıyor.
+ */
+:root {
+  /* Köşe yarıçapı her yerde sıfır. Tek bir değerden yönetiliyor ki
+     yuvarlatma kararı geri alınmak istenirse tek yerden dönsün. */
+  --radius: 0px;
+
+  --background: #f3f2f2;
+  --foreground: #201e1d;
+  /* Kart zemini = sayfa zemini. Ayrım 1px çerçeveyle yapılıyor. */
+  --card: #f3f2f2;
+  --card-foreground: #201e1d;
+  --popover: #f3f2f2;
+  --popover-foreground: #201e1d;
+
+  /*
+   * Vurgu kırmızısı. ÖLÇÜLDÜ: üstündeki #f3f2f2 yazıyla kontrast oranı
+   * 3,76:1 — WCAG AA normal punto için 4,5 istiyor. Yani birincil düğme
+   * etiketleri, etkin kenar çubuğu bağlantısı ve etkin segment düğmeleri
+   * eşiğin altında kalıyor (24px+ başlıklar 3:1 eşiğiyle geçiyor).
+   *
+   * Teslimat renkleri "final" olarak veriyor, o yüzden değiştirilmedi.
+   * Düzeltmek istenirse tek satır: #d4260e aynı kırmızının biraz koyusu ve
+   * 4,60:1 veriyor. Karar rengin kendisine ait olduğu için burada değil,
+   * bilinçli olarak dışarıda bırakıldı.
+   */
+  --primary: #ec3013;
+  --primary-foreground: #f3f2f2;
+  /*
+   * Kırmızının METİN olarak kullanılan hâli. Vurgu kırmızısı (#ec3013)
+   * zemin olarak doğru ama yazı olarak kontrast eşiğini geçmiyor: koyu
+   * temada #201e1d üstünde 3.95:1 çıkıyor, normal punto için 4.5 gerekiyor.
+   * Teslimat bunu "text-safe red" diye ayrı bir token olarak veriyor.
+   *
+   * `--destructive` ile aynı değerleri taşıyor ama anlamı farklı: o hata ve
+   * eksi tutarlar için, bu bağlantı ve etkin sekme gibi nötr vurgular için.
+   * İkisini tek tokene indirmek, ileride biri değişince diğerini de sessizce
+   * değiştirirdi.
+   */
+  --accent-text: #ae1800;
+  --secondary: #eae9e9;
+  --secondary-foreground: #201e1d;
+  /* Girdi ve pasif yüzeylerin dolgusu. */
+  --muted: #eae9e9;
+  --muted-foreground: rgba(32, 30, 29, 0.6);
+  --accent: #ffe0d9;
+  --accent-foreground: #7c1405;
+
+  /* Negatif tutarlar için METİN GÜVENLİ kırmızı. Aksan #ec3013 küçük
+     puntoda zeminle 3:1'in altına düşüyor; tutarlar 13px olduğu için
+     burada daha koyu olanı kullanılıyor. */
+  --destructive: #ae1800;
+
+  /* İki çizgi kalınlığı var ve ikisi ayrı iş yapıyor: 0.4 güçlü ayrım
+     (kart çerçevesi, bölüm başlığı altı), 0.16 satır arası tırnak çizgi. */
+  --border: rgba(32, 30, 29, 0.4);
+  --border-hairline: rgba(32, 30, 29, 0.16);
+  --input: rgba(32, 30, 29, 0.4);
+  --ring: #ec3013;
+
+  /* — Grafik paleti —
+     Teslimat, önceki çok renkli kategorik paleti tek renk + kırmızıya
+     indiriyor. Gelir mürekkep, gider kırmızı; projeksiyon aynı renklerin
+     içi boş hâli. Tarama deseni (hatching) denenip REDDEDİLDİ: iki doku
+     üst üste gelince hangisinin gelecek ay olduğu okunmuyordu. */
+  --chart-income: #201e1d;
+  --chart-expense: #ec3013;
+  --chart-expense-text: #ae1800;
+
+  /* Portföy dağılımı. Beş dilim RENKTEN ÇOK AÇIKLIKLA ayrışıyor
+     (koyu → kırmızı → orta gri → şeftali → açık gri); renk körlüğünde de
+     okunur kalmasının sebebi bu. Hiçbiri sayfa zeminiyle (#f3f2f2)
+     eşleşmiyor — geçmişte bir dilim tam da bu yüzden görünmez olmuştu. */
+  --slice-1: #201e1d;
+  --slice-2: #ec3013;
+  --slice-3: #7d7979;
+  --slice-4: #ffb199;
+  --slice-5: #d7d3d3;
+
+  /* Nötr rampa — ilerleme çubukları, ikincil dolgu. */
+  --neutral-300: #d7d3d3;
+  --neutral-400: #bab6b6;
+  --neutral-500: #9b9797;
+  --neutral-600: #7d7979;
+
+  /* Bütçe aşımı: taban rengin üstüne binen koyu kırmızı segment. */
+  --overage: #7c1405;
+
+  /* — Nakit akışı yığın grafiği —
+     Gelir ve gider ayrımı RENK AİLESİYLE yapılıyor: gelir mürekkep
+     tonları, gider kırmızı tonları. Aile içindeki ayrım açıklık
+     basamağıyla — böylece renk körlüğünde de yığın okunur kalıyor.
+     Yatırım ne gelir ne gider olduğu için iki aileden de uzak, nötr. */
+  --cash-income-1: #201e1d;
+  --cash-income-2: #605d5d;
+  --cash-expense-1: #ec3013;
+  --cash-expense-2: #7c1405;
+  --cash-expense-3: #ff9783;
+  --cash-invest: #bab6b6;
+
+  /* — Kategorik seri paleti (pasta / kategori çubukları) —
+     Dağılım paletinin sekize uzatılmış hâli. Ayrım büyük ölçüde
+     AÇIKLIKLA kuruluyor, tonla değil; dilimlerin hiçbiri sayfa zeminiyle
+     eşleşmiyor. */
+  --series-1: #201e1d;
+  --series-2: #ec3013;
+  --series-3: #7d7979;
+  --series-4: #ffb199;
+  --series-5: #d7d3d3;
+  --series-6: #ae1800;
+  --series-7: #444141;
+  --series-8: #ff9783;
+
+  /* — Maaş takvimi gün türleri —
+     Dolgu olarak kullanılıyor ve üzerlerine açık metin biniyor; hepsi
+     beyaz yazıyı taşıyacak kadar koyu. Takvimin teslimattaki hâli
+     (çalışıldı = dolu, hafta sonu = yalnız çerçeve) Maaş ekranı fazında
+     kurulacak; bunlar o zamana kadar geçerli değerler. */
+  --day-sunday: #7d7979;
+  --day-holiday: #ae1800;
+  --day-leave: #444141;
+}
+
+.dark {
+  --background: #201e1d;
+  --foreground: #f3f2f2;
+  --card: #201e1d;
+  --card-foreground: #f3f2f2;
+  --popover: #201e1d;
+  --popover-foreground: #f3f2f2;
+
+  /* Aksan koyu temada da aynı: kırmızı marka rengi, tema değişkeni değil. */
+  --primary: #ec3013;
+  --primary-foreground: #f3f2f2;
+  /* Koyu zeminde okunabilir kırmızı; #ec3013 burada 3,95:1 kalıyor. */
+  --accent-text: #ff9783;
+  --secondary: #2d2b2b;
+  --secondary-foreground: #f3f2f2;
+  --muted: #2d2b2b;
+  --muted-foreground: rgba(243, 242, 242, 0.6);
+  --accent: #4d170e;
+  --accent-foreground: #ff9783;
+
+  /* Koyu zeminde #ae1800 okunmuyor; negatif tutarlar açık mercana dönüyor. */
+  --destructive: #ff9783;
+
+  --border: rgba(243, 242, 242, 0.35);
+  --border-hairline: rgba(243, 242, 242, 0.16);
+  --input: rgba(243, 242, 242, 0.35);
+  --ring: #ec3013;
+
+  /* Gelir koyu zeminde mürekkep olamaz — zeminin kendisi mürekkep.
+     Ters çevriliyor: gelir açık, gider parlak kırmızı. */
+  --chart-income: #f3f2f2;
+  --chart-expense: #ff563c;
+  --chart-expense-text: #ff9783;
+
+  --slice-1: #f3f2f2;
+  --slice-2: #ff563c;
+  --slice-3: #9b9797;
+  --slice-4: #ffb199;
+  --slice-5: #605d5d;
+
+  --neutral-300: #605d5d;
+  --neutral-400: #7d7979;
+  --neutral-500: #9b9797;
+  --neutral-600: #bab6b6;
+
+  --overage: #ff563c;
+
+  /* Koyu zeminde gelir mürekkep olamaz — zemin zaten mürekkep. Aile
+     yönü korunuyor, açıklık basamağı ters çevriliyor. */
+  --cash-income-1: #f3f2f2;
+  --cash-income-2: #9b9797;
+  --cash-expense-1: #ff563c;
+  --cash-expense-2: #ff9783;
+  --cash-expense-3: #ae1800;
+  --cash-invest: #605d5d;
+
+  --series-1: #f3f2f2;
+  --series-2: #ff563c;
+  --series-3: #9b9797;
+  --series-4: #ffb199;
+  --series-5: #605d5d;
+  --series-6: #ff9783;
+  --series-7: #bab6b6;
+  --series-8: #7c1405;
+
+  --day-sunday: #9b9797;
+  --day-holiday: #ff563c;
+  --day-leave: #605d5d;
+}
+
+@theme inline {
+  --radius-sm: var(--radius);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
+  --radius-xl: var(--radius);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-accent-text: var(--accent-text);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-hairline: var(--border-hairline);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-overage: var(--overage);
+  --color-slice-1: var(--slice-1);
+  --color-slice-2: var(--slice-2);
+  --color-slice-3: var(--slice-3);
+  --color-slice-4: var(--slice-4);
+  --color-slice-5: var(--slice-5);
+  --color-neutral-fill: var(--neutral-300);
+  --font-sans: var(--font-ui);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Tutar, tarih ve yüzde sütunlarının hizalanması buna bağlı. Teslimat
+       bunu "her tutarda zorunlu" diye işaretliyor; gövdeye vermek tek tek
+       unutulmasını imkânsız kılıyor. */
+    font-variant-numeric: tabular-nums;
+  }
+  /* Başlıklar 800 ağırlıkta ve sıkı harf aralıklı — sistemin sesi burada. */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    line-height: 1.12;
+  }
+}
+
+@layer utilities {
+  /* Büyük harfli küçük etiket ("PORTFÖY DEĞERİ" gibi). Teslimatta 11px,
+     0.08em aralık, %60 opak mürekkep. */
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  /* Satır arası tırnak çizgi — kart çerçevesinden ince, tablo satırları için. */
+  .divide-hairline > * + * {
+    border-top: 1px solid var(--border-hairline);
+  }
+}

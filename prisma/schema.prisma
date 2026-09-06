@@ -1,0 +1,615 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WorkPeriodType {
+  WORKED
+  LEAVE
+}
+
+/// Maaş hesabında bir günün tipi. Gün istisnalarında kullanıcı bu değerlerden
+/// birini seçer; normal akışta gün, dönemlere ve tatil takvimine bakılarak
+/// otomatik belirlenir.
+enum SalaryDayType {
+  NORMAL
+  SUNDAY
+  PUBLIC_HOLIDAY
+  LEAVE
+}
+
+enum EntryFrequency {
+  ONE_TIME
+  MONTHLY
+}
+
+/// Giderin hangi sekmeye ait olduğu. Aynı harcamanın iki sekmede birden
+/// girilip çift sayılmaması için kayıtlar tek bir türe aittir.
+enum ExpenseKind {
+  /// Nakit, havale, otomatik ödeme — "Genel Giderler" sekmesi.
+  OTHER
+  /// Kredi kartıyla yapılan harcama; nakit akışına ekstre ayında girer.
+  CREDIT_CARD
+}
+
+enum AssetType {
+  CRYPTO
+  STOCK
+  ETF
+  FOREX
+  COMMODITY
+  MANUAL
+}
+
+enum BaseCurrency {
+  TRY
+  USD
+}
+
+enum SalaryMode {
+  FIXED
+  VARIABLE
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+/// Üyelik durumu. Kayıt olan herkes PENDING başlar; ACTIVE olmadan giriş
+/// yapamaz. DISABLED, silmeden erişimi kesmek için — kaydı silmek kullanıcının
+/// bütün verisini de götürürdü (onDelete: Cascade).
+enum UserStatus {
+  PENDING
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id                           String       @id @default(cuid())
+  name                         String?
+  username                     String       @unique
+  passwordHash                 String
+  baseCurrency                 BaseCurrency @default(TRY)
+  role                         UserRole     @default(USER)
+  /// Yeni kayıtlar onay bekler; varsayılanın PENDING olması, onay adımının
+  /// unutulup açık kapı bırakmasını imkânsız kılar.
+  status                       UserStatus   @default(PENDING)
+  /// Onaylayan admin ve zamanı — kimin içeride olduğunun kaydı.
+  approvedAt                   DateTime?
+  approvedById                 String?
+  /// ARTIK OKUNMUYOR — maaş türü baz maaş dönemine taşındı
+  /// (BaseSalaryRate.mode). 20260826090000 göçünde dönemlere devredildi;
+  /// veri kaybı olmasın diye silinmedi ve dışa aktarmada duruyor.
+  salaryMode                   SalaryMode   @default(VARIABLE)
+  /**
+   * Maaş, hak edildiği aydan kaç ay sonra ödeniyor. Genel Bakış nakit
+   * akışını gösterdiği için maaşı bu kadar ileri kaydırır (örn. temmuz
+   * maaşı ağustosta yatıyorsa 1). Maaş sekmesi hak edişi göstermeye devam
+   * eder. 0 = aynı ay içinde ödeniyor.
+   */
+  salaryPaymentMonthOffset     Int          @default(0)
+  /**
+   * Kredi kartı ekstresi, harcamanın yapıldığı aydan kaç ay sonra ödeniyor
+   * (örn. temmuz harcamaları 8 ağustosta ödeniyorsa 1). Yeni harcama
+   * eklerken ödeme ayı bununla önerilir; kayıt bazında değiştirilebilir.
+   */
+  creditCardPaymentMonthOffset Int          @default(1)
+  /**
+   * Ekstrenin kesildiği gün (1-28). Sabit ay kaydırması tek başına yetmiyor:
+   * kesim günü 4 ise ayın 2'sinde yapılan harcama BU ayın ekstresine,
+   * 10'unda yapılan ise gelecek ayınkine düşer. Otomatik aktarımda ödeme
+   * ayı bununla önerilir. Kart bazında değişir; Ayarlar'dan düzenlenir.
+   */
+  creditCardStatementDay       Int          @default(4)
+  /**
+   * Tanıtım turu tamamlanan sayfaların anahtarları. Sayfa başına bir kez
+   * gösterilir; kullanıcı bazında tutulur ki tarayıcı/cihaz değişse de
+   * tekrar çıkmasın.
+   */
+  completedTours               String[]     @default([])
+  createdAt                    DateTime     @default(now())
+  updatedAt                    DateTime     @updatedAt
+
+  workPeriods         WorkPeriod[]
+  baseSalaryRates     BaseSalaryRate[]
+  referenceFxRates    ReferenceFxRate[]
+  monthlySalaryResult MonthlySalaryResult[]
+  incomeCategories    IncomeCategory[]
+  incomeEntries       IncomeEntry[]
+  expenseCategories   ExpenseCategory[]
+  expenses            Expense[]
+  investmentTx        InvestmentTransaction[]
+  loans               Loan[]
+  cardPayments        CreditCardStatementPayment[]
+  dayExceptions       SalaryDayException[]
+  importTokens        ImportToken[]
+  importedTx          ImportedTransaction[]
+}
+
+/// ARTIK OKUNMUYOR — tarihçe için duruyor.
+///
+/// Çalışma/izin aralıkları arayüzden kaldırıldı; günler takvimden tek tek
+/// (ya da sürükleyerek) işaretleniyor ve SalaryDayException'a yazılıyor.
+/// Mevcut satırlar 20260825120000 göçüyle gün gün istisnalara açıldı.
+/// Maaş hesabı ve takvim bu tabloya bakmıyor; veri kaybı olmasın diye
+/// silinmedi ve dışa aktarmaya (`/api/export`) dahil edilmeye devam ediyor.
+model WorkPeriod {
+  id        String         @id @default(cuid())
+  userId    String
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime       @db.Date
+  endDate   DateTime       @db.Date
+  type      WorkPeriodType
+  note      String?
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  @@index([userId, startDate, endDate])
+}
+
+/// Bir günün maaş tipi. Takvimin TEK veri kaynağı.
+///
+/// Eskiden bunlar aralıkların üzerine yazılan istisnalardı; aralıklar
+/// kaldırılınca kaydın kendisi asıl veri oldu. Satırı olmayan gün hiçbir
+/// tipe girmez ve maaşa hiç katılmaz — takvimde "Boş" olarak, ayrıca kırmızı
+/// bir uyarıyla gösterilir; sessizce kaybolan gün olmaması için.
+///
+/// Tarihe bağlıdır, başka hiçbir kayda değil: bir günün ne olduğu, o gün
+/// hakkındaki tek gerçektir.
+model SalaryDayException {
+  id        String        @id @default(cuid())
+  userId    String
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime      @db.Date
+  dayType   SalaryDayType
+  note      String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+}
+
+model PublicHoliday {
+  id   String   @id @default(cuid())
+  date DateTime @unique @db.Date
+  name String
+}
+
+/// Bir dönemin baz maaşı VE o dönemde maaşın nasıl hesaplandığı.
+///
+/// `mode` burada duruyor, kullanıcıda değil: değişkenden sabite geçen biri
+/// tek bir kullanıcı ayarıyla geçmişini de yeni yönteme çevirirdi. Dönem
+/// bazında olunca eski aylar kendi yöntemiyle hesaplanmış kalır.
+///
+/// Dönemler her zaman tam aylardır (arayüzde `type="month"`, sunucuda ay
+/// başı/ay sonuna yuvarlanır), bu yüzden bir ayın türü tektir ve ayın ilk
+/// gününü kapsayan dönemden okunur.
+model BaseSalaryRate {
+  id            String       @id @default(cuid())
+  userId        String
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount        Decimal      @db.Decimal(14, 2)
+  currency      BaseCurrency @default(USD)
+  mode          SalaryMode   @default(VARIABLE)
+  effectiveFrom DateTime     @db.Date
+  effectiveTo   DateTime?    @db.Date
+  createdAt     DateTime     @default(now())
+
+  @@unique([userId, effectiveFrom])
+  @@index([userId, effectiveFrom])
+}
+
+model ReferenceFxRate {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rate          Decimal   @db.Decimal(12, 4)
+  effectiveFrom DateTime  @db.Date
+  effectiveTo   DateTime? @db.Date
+  createdAt     DateTime  @default(now())
+
+  @@unique([userId, effectiveFrom])
+  @@index([userId, effectiveFrom])
+}
+
+model TcmbRateSnapshot {
+  id      String   @id @default(cuid())
+  date    DateTime @unique @db.Date
+  usdSale Decimal  @db.Decimal(12, 4)
+  source  String   @default("tcmb")
+}
+
+model MonthlySalaryResult {
+  id             String       @id @default(cuid())
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  month          String
+  mode           SalaryMode
+  currency       BaseCurrency
+  nominalTotal   Decimal?     @db.Decimal(14, 2)
+  avgUsdTryRate  Decimal?     @db.Decimal(12, 4)
+  // avgUsdTryRate hangi ayın TCMB verisinden geldi. Normalde `month` ile
+  // aynıdır; hedef ayın verisi henüz yayınlanmadıysa (ileri tarihli ay)
+  // yedek olarak kullanılan geçmiş ayı gösterir.
+  fxRateMonth    String?
+  referenceRate  Decimal?     @db.Decimal(12, 4)
+  total          Decimal      @db.Decimal(14, 2)
+  actualAmount   Decimal?     @db.Decimal(14, 2)
+  breakdown      Json?
+  computedAt     DateTime     @default(now())
+  // Satırın hangi hesaplama kuralı sürümüyle üretildiği. Formül değiştiğinde
+  // koddaki sürüm artırılır; sayfa açılışındaki yeniden hesaplama, geride
+  // kalan satırları eksik ay gibi ele alıp tazeler. Bu olmadan formül
+  // düzeltmeleri yalnızca yeni aylara işliyor, geçmiş aylar eski tutarda
+  // donup kalıyordu.
+  formulaVersion Int          @default(0)
+
+  @@unique([userId, month])
+}
+
+model IncomeCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  entries IncomeEntry[]
+
+  @@unique([userId, name])
+}
+
+model IncomeEntry {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId String
+  category   IncomeCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount     Decimal        @db.Decimal(12, 2)
+  currency   BaseCurrency
+  note       String?
+  date       DateTime       @db.Date
+  frequency  EntryFrequency @default(ONE_TIME)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  @@index([userId, date])
+}
+
+model ExpenseCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  isDefault Boolean  @default(false)
+  /**
+   * Gizlenmiş kategori. Yeni harcama eklerken ve düzenlerken seçim
+   * listesinde çıkmaz, ama geçmiş kayıtların kategorisi olarak durmaya
+   * devam eder — silmek yerine gizlemek, kayıtların etiketini korur.
+   * Kullanım örneği: kredi taksitleri "Krediler" sekmesine taşındıktan
+   * sonra artık kullanılmayan "Kredi Ödemesi" kategorisi.
+   */
+  archived  Boolean  @default(false)
+  /**
+   * Aylık bütçe sınırı, kullanıcının baz para biriminde. `null` = bu
+   * kategoriye sınır konmamış; Bütçeler sayfası onu "sınırsız" sayar ve
+   * toplama katmaz. 0 geçerli bir değer: "bu kategoriye hiç harcama
+   * yapmayacağım" demek, sınır yokluğundan farklı.
+   */
+  monthlyLimit Decimal? @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  entries Expense[]
+
+  @@unique([userId, name])
+}
+
+model Expense {
+  id               String          @id @default(cuid())
+  userId           String
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId       String
+  category         ExpenseCategory @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  amount           Decimal         @db.Decimal(12, 2)
+  currency         BaseCurrency
+  note             String?
+  /// Harcamanın yapıldığı gün. Kredi kartında bu "ne zaman harcadım"dır;
+  /// paranın ne zaman çıktığı `paymentMonth`'tadır.
+  date             DateTime        @db.Date
+  frequency        EntryFrequency  @default(ONE_TIME)
+  kind             ExpenseKind     @default(OTHER)
+  /**
+   * Ekstrenin ödendiği ay (yyyy-MM). Yalnızca kredi kartı kayıtlarında
+   * doludur; nakit akışı bu ayı kullanır. Boşsa harcama kendi ayında
+   * ödenmiş sayılır. Kayıt bazında saklanır ki ayarı sonradan değiştirmek
+   * geçmiş kayıtları yerinden oynatmasın.
+   */
+  paymentMonth     String?
+  /**
+   * Kaç taksite bölündüğü. 1 = tek çekim. `amount` her zaman TOPLAM tutardır;
+   * aylık taksit buradan türetilir, böylece harcamanın gerçek büyüklüğü
+   * kategori dağılımında bozulmadan görünür.
+   */
+  installmentCount Int             @default(1)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, kind])
+}
+
+/**
+ * Bir aya karşılık karta GERÇEKTEN ödenen tutar.
+ * Uygulama varsayılan olarak "ekstrenin tamamı ödendi" kabul eder. Asgari
+ * ödeme yapıldığında bu varsayım kırılır: kayıtlı harcamalar ile cepten
+ * çıkan para ayrışır ve ödenmeyen kısım sonraki aya devreder. Bu kayıt
+ * girilirse nakit akışı hesaplanan ekstre yerine bu tutarı kullanır —
+ * maaştaki "gerçekleşen ödeme" ile aynı mantık.
+ * Para birimi başına ayrı satır: farklı para birimindeki ekstreler tek
+ * bakiyede toplanamaz.
+ */
+model CreditCardStatementPayment {
+  id        String       @id @default(cuid())
+  userId    String
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Ödemenin yapıldığı ay (yyyy-MM).
+  month     String
+  amount    Decimal      @db.Decimal(12, 2)
+  currency  BaseCurrency @default(TRY)
+  note      String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@unique([userId, month, currency])
+  @@index([userId, month])
+}
+
+/**
+ * Bir kredi (konut, taşıt, ihtiyaç...). Krediler paralel ilerlediği için
+ * maaştaki tek zaman çizgisi modeli kullanılamaz: her kredi kendi
+ * taksit dönemlerini taşır, aylık toplam gider o ay aktif olan tüm
+ * kredilerin toplamıdır.
+ */
+model Loan {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  currency   BaseCurrency @default(TRY)
+  /// İlk taksit ayı (yyyy-MM).
+  startMonth String
+  /**
+   * Son taksit ayı (yyyy-MM). Boş bırakılabilir ama o zaman kredi
+   * projeksiyonda sonsuza kadar gider yazar; arayüz bunu uyarır.
+   */
+  endMonth   String?
+  /**
+   * Kullanıcının "ödendi" diye işaretlediği taksit ayları (yyyy-MM).
+   * Tamamen opsiyoneldir: hesaplamalar takvime göre yapılmaya devam eder,
+   * bu liste yalnızca elle takip içindir.
+   */
+  paidMonths String[]     @default([])
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  periods LoanPeriod[]
+
+  @@index([userId])
+}
+
+/**
+ * Kredinin bir ödeme dönemi. Yalnızca başlangıç ayı tutulur; dönem, bir
+ * sonraki dönem başlayana (yoksa kredinin `endMonth`'una) kadar geçerlidir.
+ * Böylece dönemler ne çakışabilir ne de aralarında boşluk kalabilir.
+ */
+model LoanPeriod {
+  id            String   @id @default(cuid())
+  loanId        String
+  loan          Loan     @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  amount        Decimal  @db.Decimal(12, 2)
+  /// Bu taksit tutarının geçerli olmaya başladığı ay (yyyy-MM).
+  effectiveFrom String
+  createdAt     DateTime @default(now())
+
+  @@unique([loanId, effectiveFrom])
+  @@index([loanId, effectiveFrom])
+}
+
+enum TradeSide {
+  BUY
+  SELL
+}
+
+/**
+ * Tek tek alış/satış işlemleri. Pozisyonlar (adet, ağırlıklı ortalama
+ * maliyet, gerçekleşen kâr/zarar) bu kayıtlardan türetilir; ayrıca bir
+ * "toplam pozisyon" tablosu tutulmaz ki ikisi birbirinden sapmasın.
+ */
+model InvestmentTransaction {
+  id           String       @id @default(cuid())
+  userId       String
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  symbol       String
+  assetType    AssetType
+  side         TradeSide
+  quantity     Decimal      @db.Decimal(20, 8)
+  pricePerUnit Decimal      @db.Decimal(20, 8)
+  currency     BaseCurrency
+  tradedAt     DateTime     @db.Date
+  note         String?
+  /**
+   * Yalnızca SATIŞ işlemlerinde anlamlı: satış hasılatı nakit akışına
+   * girdi mi, yoksa yatırım hesabında "serbest nakit" olarak mı kaldı.
+   *
+   * Varsayılan `true`, çünkü eski davranış buydu ve mevcut kayıtların
+   * anlamı değişmemeli. `false` seçildiğinde para cebe girmiş sayılmaz;
+   * sonraki alımları fonlar ve Yatırımlar sayfasında serbest nakit
+   * kutusunda görünür.
+   *
+   * ALIŞ satırlarında bu alan okunmaz: bir alımın cepten mi serbest
+   * nakitten mi karşılandığı seçime bırakılmıyor, serbest nakit önce
+   * kullanılıyor (bkz. lib/investments/cashFlow).
+   */
+  proceedsWithdrawn Boolean @default(true)
+  /**
+   * Uygulamaya başlamadan önce sahip olunan pozisyon. Maliyet ve kâr/zarar
+   * hesabına normal girer ama NAKİT AKIŞINA girmez: para uygulama daha
+   * yokken çıkmıştır. Bu ayrım olmadan yeni kullanıcı mevcut portföyünü
+   * girdiğinde ilk ayı devasa bir yatırım çıkışı gibi görünüyordu.
+   */
+  isOpening    Boolean      @default(false)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([userId, symbol, assetType])
+  @@index([userId, tradedAt])
+}
+
+/**
+ * Günlük fiyat arşivi. PriceSnapshot yalnızca en güncel fiyatı tutup üzerine
+ * yazdığı için geçmiş ayların piyasa değeri hesaplanamıyordu; bu tablo her
+ * fiyat yenilemesinde o günün fiyatını saklar.
+ */
+model PriceHistory {
+  id        String    @id @default(cuid())
+  symbol    String
+  assetType AssetType
+  date      DateTime  @db.Date
+  price     Decimal   @db.Decimal(20, 8)
+  currency  String
+
+  @@unique([symbol, assetType, date])
+  @@index([symbol, assetType, date])
+}
+
+model PriceSnapshot {
+  id        String    @id @default(cuid())
+  symbol    String
+  assetType AssetType
+  price     Decimal   @db.Decimal(20, 8)
+  currency  String
+  source    String
+  fetchedAt DateTime  @default(now())
+
+  @@unique([symbol, assetType])
+}
+
+model FxRateSnapshot {
+  id        String   @id @default(cuid())
+  base      String
+  quote     String
+  rate      Decimal  @db.Decimal(14, 6)
+  fetchedAt DateTime @default(now())
+
+  @@unique([base, quote])
+}
+
+/// Otomatik aktarımın kaynağı. Şimdilik tek değer var ama kayıtta durması
+/// gerekiyor: ileride başka bir banka/kanal eklendiğinde geçmiş kayıtların
+/// nereden geldiği belirsizleşmesin.
+enum ImportSource {
+  AKBANK_EMAIL
+}
+
+enum ImportedTransactionKind {
+  PURCHASE
+  CANCELLATION
+}
+
+enum ImportedTransactionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/**
+ * Dış bir aracın (Gmail'de çalışan Apps Script) uygulamaya kayıt
+ * gönderebilmesi için kullanıcı başına üretilen anahtar.
+ * Anahtar `<id>.<secret>` biçiminde verilir: `id` ile satır bulunur,
+ * `secret` ise yalnızca SHA-256 özeti olarak saklanır. Parola değil
+ * yüksek entropili rastgele bir dize olduğu için bcrypt gerekmiyor;
+ * karşılaştırma sabit zamanlı yapılır.
+ * Anahtar kullanıcıya bir kez gösterilir. Kaybolursa yenisi üretilir —
+ * saklanan özetten geri döndürülemez.
+ */
+model ImportToken {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  secretHash String
+  /// Kullanıcının anahtarı tanıması için kendi verdiği ad ("Telefon Gmail").
+  label      String?
+  /// Son kullanım — bağlantının çalışıp çalışmadığı buradan görülür.
+  lastUsedAt DateTime?
+  /// Dolu ise anahtar iptal edilmiştir; silmek yerine iptal ediyoruz ki
+  /// hangi anahtarın ne zaman kapatıldığı kayıtta kalsın.
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/**
+ * Mailden okunmuş ama HENÜZ GİDER OLMAMIŞ hareket.
+ * Doğrudan `Expense` yazmıyoruz: harcamaların bir bölümü kategorisiz
+ * geliyor (banka sektörü çözemediğinde "KREDI KARTI" yazıyor), yurt dışı
+ * tutarları çevrilmesi gerekiyor ve iptaller eşleştirilmeli. Onay adımı
+ * olmadan bunlar sessizce yanlış veri olarak grafiklere karışırdı.
+ */
+model ImportedTransaction {
+  id     String                    @id @default(cuid())
+  userId String
+  user   User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source ImportSource              @default(AKBANK_EMAIL)
+  status ImportedTransactionStatus @default(PENDING)
+  kind   ImportedTransactionKind   @default(PURCHASE)
+
+  /**
+   * Kaynaktaki benzersiz kimlik (Gmail message id). Tekilleştirmenin
+   * dayanağı budur: Apps Script aynı maili yeniden gönderirse ikinci kayıt
+   * açılmaz. Tutar+tarih ile tekilleştirmek yanlış olurdu — aynı gün aynı
+   * yerde iki kez aynı tutar harcamak olağan.
+   */
+  externalId String
+
+  /// Mailin geldiği gün = harcama günü.
+  occurredAt DateTime @db.Date
+
+  /// Mailde YAZAN tutar ve para birimi, çevrilmeden.
+  rawAmount   Decimal @db.Decimal(14, 2)
+  rawCurrency String
+
+  /**
+   * Baz para birimine çevrilmiş tutar. Kur bulunamazsa null kalır ve
+   * kullanıcı onay kutusunda elle girer — uydurma kurla kayıt açmak,
+   * eksik kayıttan daha kötü.
+   */
+  amount   Decimal?      @db.Decimal(14, 2)
+  currency BaseCurrency?
+  /// Çevrimde kullanılan kur; sonradan "bu tutar nereden çıktı" sorusunun cevabı.
+  fxRate   Decimal?      @db.Decimal(18, 8)
+
+  /// Banka sektör adı, mailde geçtiği hâliyle.
+  sector              String
+  cardLast4           String
+  installmentCount    Int     @default(1)
+  /// Sektörden türetilen kategori önerisi; kullanıcı onaylarken değiştirebilir.
+  suggestedCategoryId String?
+  /// Kesim gününe göre hesaplanan ekstre ayı önerisi (yyyy-MM).
+  paymentMonth        String?
+
+  /// Onaylandığında doğan gider kaydı.
+  expenseId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, externalId])
+  @@index([userId, status])
+}

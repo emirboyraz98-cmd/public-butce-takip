@@ -1,0 +1,181 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.5rem;
+  /* Kâğıt: saf beyaz değil, hafif soğuk. Kartlar beyaz kaldığı için
+     zeminden yükseliyorlar — eskiden ikisi de saf beyazdı ve kart yalnızca
+     1px çerçeveyle var oluyordu. */
+  --background: oklch(0.983 0.004 250);
+  --foreground: oklch(0.26 0.03 258);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.26 0.03 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.26 0.03 258);
+  --primary: oklch(0.34 0.055 258);
+  --primary-foreground: oklch(0.985 0.003 250);
+  --secondary: oklch(0.955 0.006 250);
+  --secondary-foreground: oklch(0.30 0.04 258);
+  --muted: oklch(0.957 0.005 250);
+  --muted-foreground: oklch(0.515 0.022 255);
+  --accent: oklch(0.944 0.012 252);
+  --accent-foreground: oklch(0.30 0.04 258);
+  --destructive: oklch(0.545 0.198 25);
+  --border: oklch(0.903 0.008 250);
+  --input: oklch(0.898 0.008 250);
+  --ring: oklch(0.60 0.09 258);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  /* Kategorik seri paleti (pasta/çubuk grafiklerde kimlik rengi).
+     Sabit sırayla atanır, döngüye sokulmaz. Renk körlüğü ayrımı,
+     açıklık bandı ve zemin kontrastı için doğrulanmıştır; değerleri
+     tek tek değiştirmeyin — palet bir bütün olarak geçerlidir. */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-6: #008300;
+  --series-7: #4a3aa7;
+  --series-8: #e34948;
+
+  /* Nakit akışı grafiğinin anlamsal paleti.
+
+     Kategorik palet burada yetmiyordu: gelir ve gider kalemleri rastgele
+     tonlar aldığı için "hangisi gelir, hangisi gider" ancak açıklamaya
+     bakarak anlaşılıyordu. Artık iki aile var — gelir SOĞUK (mavi, turkuaz),
+     gider SICAK (gül, turuncu, kehribar) — ve okur ailenin hangisi olduğunu
+     tek bakışta görüyor.
+
+     Beşi birlikte validate_palette.js'in tüm çiftler kontrolünden geçirildi
+     (açık temada en kötü çift ΔE 14.3 renk körlüğü / 16.6 normal görüş).
+     Ton aileleri koyu temayla aynı; yalnızca açıklık/kroma yeniden
+     basamaklandı. */
+  --cash-income-1: #4278d2; /* Maaş */
+  --cash-income-2: #00ccb4; /* Diğer Gelir */
+  --cash-expense-1: #d8a818; /* Diğer Gider */
+  --cash-expense-2: #c66606; /* Kredi Kartı */
+  --cash-expense-3: #9c2a48; /* Kredi Taksiti */
+  /* Yatırım üçüncü bir ailedir: ne gelir ne gider, varlık transferi.
+     Mor bilerek iki aileden de uzak seçildi; validate_palette.js ile
+     altı rengin tüm çiftleri doğrulandı. */
+  --cash-invest: #7230a5; /* Yatırım */
+  /* Maaş takvimi gün türleri. "Normal gün" en sık durum olduğu için dolgusu
+     yok — sade zemin kalır, göz yalnızca istisnalara takılır. "Dönem yok" da
+     renk değil doku ile anlatılır (kesikli çerçeve): bir yokluğu ifade ediyor
+     ve beşinci doygun renk koyu temada paletten taşıyordu.
+     validate_palette.js ile açık/koyu temada doğrulandı (en kötü çift 10.8). */
+  --day-sunday: #c98a10;
+  --day-holiday: #0f8a6a;
+  --day-leave: #3f7fd0;
+}
+
+.dark {
+  --background: oklch(0.172 0.014 258);
+  --foreground: oklch(0.952 0.006 250);
+  --card: oklch(0.216 0.018 258);
+  --card-foreground: oklch(0.952 0.006 250);
+  --popover: oklch(0.216 0.018 258);
+  --popover-foreground: oklch(0.952 0.006 250);
+  --primary: oklch(0.82 0.045 255);
+  --primary-foreground: oklch(0.20 0.022 258);
+  --secondary: oklch(0.262 0.020 258);
+  --secondary-foreground: oklch(0.952 0.006 250);
+  --muted: oklch(0.262 0.020 258);
+  --muted-foreground: oklch(0.685 0.020 255);
+  --accent: oklch(0.292 0.025 258);
+  --accent-foreground: oklch(0.952 0.006 250);
+  --destructive: oklch(0.685 0.180 22);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 16%);
+  --ring: oklch(0.60 0.07 258);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+
+  /* Aynı sekiz renk, koyu zemin için yeniden basamaklanmış hâli
+     (açık moddaki değerlerin otomatik çevrimi değil). */
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-6: #008300;
+  --series-7: #9085e9;
+  /* Kehribar (series-4) ile birlikte gider yığınında kullanıldığı için
+     normal görüşte ayrışması gerekiyordu; #e66767 ile ΔE 13'te kalıyordu. */
+  --series-8: #e94f78;
+
+  /* Açık moddaki ton aileleriyle aynı; koyu zemin için yeniden
+     basamaklanmış. Tüm çiftler kontrolünden geçer (en kötü ΔE 6.7 renk
+     körlüğü / 15.1 normal görüş; renk körlüğü 6–8 bandı, her dilime değeri
+     doğrudan yazıldığı için geçerli). */
+  --cash-income-1: #4278d2;
+  --cash-income-2: #009c78;
+  --cash-expense-1: #b48a00;
+  --cash-expense-2: #ae4800;
+  --cash-expense-3: #de6672;
+  --cash-invest: #7d3db2;
+  --day-sunday: #b28d18;
+  --day-holiday: #2aa583;
+  --day-leave: #5b93e0;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --font-sans: var(--font-ui);
+  --font-mono: var(--font-money);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* Defterin kimliği hizalanmış rakamlardır: orantılı rakamlarda tutar
+       sütunlarındaki basamaklar birbirini tutmuyordu. */
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Üst özet kutularındaki büyük tutarlar para yüzünde. İmza öğe burada:
+     rakamlar sabit genişlikte, sütunlar hizalı. */
+  [data-slot="card-title"].text-2xl {
+    font-family: var(--font-money);
+    letter-spacing: -0.015em;
+  }
+}
