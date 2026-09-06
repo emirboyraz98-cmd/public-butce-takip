@@ -40,6 +40,9 @@ Zod v4 · react-hook-form · Recharts · Vitest
 
 ## Kurulum (Vercel + Neon)
 
+> Hiç kod yazmadan, ekran ekran anlatan sürüm:
+> [`docs/kurulum.md`](docs/kurulum.md). Aşağısı özet.
+
 ### 1. Veritabanı
 
 [Neon](https://neon.tech) üzerinde ücretsiz bir Postgres projesi aç ve
