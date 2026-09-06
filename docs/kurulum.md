@@ -36,10 +36,23 @@ Deponun sayfasında sağ üstteki **Fork** düğmesine bas, sonra
 
 ---
 
-## 3. İki tane parola üret
+## 3. İki tane rastgele metin üret
 
-İki rastgele metne ihtiyacın var. Terminal kullanmak istemiyorsan tarayıcıda
-üretebilirsin — hiçbir yere gitmez, kendi bilgisayarında oluşur:
+Vercel'e üç değer gireceksin. Üçünün nereden geldiği farklı — en çok
+karışan yer burası:
+
+| Değer | Nereden geliyor? |
+|---|---|
+| `DATABASE_URL` | **Kopyalanır.** 2. adımdaki Neon adresi. Uydurulmaz, başka bir şey yazılmaz. |
+| `AUTH_SECRET` | **Sen üretirsin.** Rastgele bir metin. Hiçbir yerden almıyorsun, hiçbir şeyle eşleşmesi gerekmiyor. |
+| `CRON_SECRET` | **Sen üretirsin.** Yine rastgele, ama `AUTH_SECRET`'tan farklı olsun. |
+
+Son ikisi bir daha asla elle yazmayacağın değerler: uygulamanın kendi
+kendine kullandığı anahtarlar. Ezberlemene, not almana, birinin
+onaylamasına gerek yok — üret, yapıştır, unut. Kimseyle aynı olmaları da
+gerekmiyor; her kurulumun kendi anahtarları olur.
+
+**Nasıl üretilir (terminal gerekmez):**
 
 Tarayıcıda `F12` → **Console** sekmesi → şunu yapıştırıp Enter:
 
@@ -47,10 +60,19 @@ Tarayıcıda `F12` → **Console** sekmesi → şunu yapıştırıp Enter:
 btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
 ```
 
-Çıkan uzun metni kopyala. **Sonra komutu bir kez daha çalıştır** ve ikinci
-metni de kopyala. Birincisi `AUTH_SECRET`, ikincisi `CRON_SECRET` olacak.
+Tırnaklar arasında şuna benzer bir metin çıkar:
 
-Terminal kullanıyorsan aynısı: `openssl rand -base64 32` (iki kez).
+```
+"j8Kd2pQmR7vXnB4tLzA9wYcE6fHsU1oI3gN5aP0eT2M="
+```
+
+Tırnakların **içindekini** kopyala. Sonra komutu bir kez daha çalıştır ve
+çıkan ikinci metni de kopyala. Birincisi `AUTH_SECRET`, ikincisi
+`CRON_SECRET` olacak.
+
+Bu metin senin bilgisayarında üretilir, hiçbir siteye gitmez.
+
+Terminal kullanmayı biliyorsan aynısı: `openssl rand -base64 32` (iki kez).
 
 ---
 
@@ -62,11 +84,17 @@ Terminal kullanıyorsan aynısı: `openssl rand -base64 32` (iki kez).
 4. Framework otomatik **Next.js** görünür, dokunma.
 5. **Environment Variables** bölümünü aç ve üç satır ekle:
 
-   | Name | Value |
+   | Name (aynen böyle yaz) | Value (buraya ne yapıştıracaksın) |
    |---|---|
-   | `DATABASE_URL` | 2. adımdaki Neon adresi |
-   | `AUTH_SECRET` | 3. adımdaki **birinci** metin |
-   | `CRON_SECRET` | 3. adımdaki **ikinci** metin |
+   | `DATABASE_URL` | 2. adımda Neon'dan kopyaladığın adres — `postgresql://` ile başlayan uzun satır |
+   | `AUTH_SECRET` | 3. adımda ürettiğin **birinci** rastgele metin |
+   | `CRON_SECRET` | 3. adımda ürettiğin **ikinci** rastgele metin |
+
+   Her satır için: **Key** kutusuna soldaki adı harfi harfine yaz (büyük
+   harf ve alt çizgilerle), **Value** kutusuna değeri yapıştır, **Add** de.
+   Üçü de eklenmiş olmalı; biri eksikse deploy hata verir.
+
+   Değerlerin başında/sonunda boşluk ya da tırnak kalmasın.
 
 6. **Deploy** de ve bekle (2–4 dakika).
 
@@ -126,6 +154,10 @@ Giriş yaptıktan sonra:
 ---
 
 ## Takılırsan
+
+**Deploy kırmızı, hata "AUTH_SECRET" ya da "MissingSecret" diyor.**
+`AUTH_SECRET` eklenmemiş ya da boş kalmış. Settings → Environment
+Variables'dan ekleyip **Redeploy** de.
 
 **Deploy kırmızı, hata "migrate" diyor.**
 `DATABASE_URL` yanlış ya da havuzlanmış adres olabilir. Neon'daki
