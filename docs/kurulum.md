@@ -153,6 +153,33 @@ Giriş yaptıktan sonra:
 
 ---
 
+## Güncellemeleri almak
+
+Fork **kendi kendine güncellenmez.** Ana depoya yeni bir özellik geldiğinde
+senin kopyan olduğu yerde kalır; ne zaman alacağına sen karar verirsin.
+
+Almak için forkunun GitHub sayfasında:
+
+1. Üstteki **Sync fork** düğmesine bas.
+2. **Update branch** de.
+
+Sonrası kendiliğinden akar: Vercel yeni commit'i görür, deploy eder ve
+build sırasında `prisma migrate deploy` veritabanı değişikliklerini de
+uygular. Senin ek bir şey yapmana gerek yok, verilerin de silinmez.
+
+Deploy'un bittiğini Vercel panelinden görebilirsin; birkaç dakika sürer.
+
+**Kod üzerinde kendi değişikliklerini yaptıysan** Sync fork çakışma
+verebilir. O durumda çakışan dosyaları elle birleştirmen gerekir — bu
+yüzden kendi düzenlemelerini ayrı bir dalda tutmak işini kolaylaştırır.
+
+> Otomatik olsun istiyorsan: forkunda **Actions** sekmesini açıp zamanlanmış
+> bir senkron iş akışı kurabilirsin. Ama tavsiye edilmez — gelen her
+> değişiklik gözden geçirilmeden canlı uygulamana ve veritabanına iner.
+> Ayda bir "Sync fork"a basmak hem yeterli hem daha güvenli.
+
+---
+
 ## Takılırsan
 
 **Deploy kırmızı, hata "AUTH_SECRET" ya da "MissingSecret" diyor.**

@@ -137,6 +137,13 @@ harcama bildirimlerini uygulamaya POST eder. Kurulumu
 **Resmi tatiller** Türkiye takvimine göre `lib/salary/publicHolidays.ts`
 içinde gömülü. Başka bir ülkede kullanacaksan orayı değiştir.
 
+## Güncelleme
+
+Bu depoyu forkladıysan, fork kendi kendine güncellenmez. Yeni sürümü almak
+için forkunun sayfasında **Sync fork → Update branch**; Vercel yeni commit'i
+görüp deploy eder ve şema göçleri build sırasında (`prisma migrate deploy`)
+uygulanır. Ayrıntı: [`docs/kurulum.md`](docs/kurulum.md#güncellemeleri-almak).
+
 ## Lisans
 
 MIT — bkz. [LICENSE](LICENSE).
