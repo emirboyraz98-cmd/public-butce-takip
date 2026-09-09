@@ -225,3 +225,41 @@ export async function setCreditCardStatementDay(
   revalidateAll();
   return { success: true };
 }
+
+/**
+ * Kart harcamaları için toplam aylık sınır (baz para birimi).
+ *
+ * Boş gönderilirse sınır kaldırılır — bu, sınırı 0 yapmaktan farklı:
+ * null "takip etme", 0 ise "kartı hiç kullanmayacağım" hedefi. Kategori
+ * sınırları da aynı ayrımı yapıyor.
+ */
+export async function setCreditCardMonthlyLimit(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const raw = String(formData.get("limit") ?? "").trim();
+
+  if (raw === "") {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { creditCardMonthlyLimit: null },
+    });
+    revalidateAll();
+    return { success: true };
+  }
+
+  const limit = Number(raw);
+  if (!Number.isFinite(limit) || limit < 0) {
+    return { error: "Sınır 0 veya daha büyük bir sayı olmalı" };
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { creditCardMonthlyLimit: limit },
+  });
+
+  revalidateAll();
+  return { success: true };
+}

@@ -6,12 +6,15 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { Tabs } from "@/components/ui/tabs";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
+import { CalcInfo } from "@/components/ui/calc-info";
+import { cardLimitStatus } from "@/lib/expenses/cardLimit";
 import { formatMoney, formatMonth } from "@/lib/format";
 import { CreditCardSummary, type CardEntry } from "./credit-card-summary";
 import {
   CreditCardOffsetForm,
   CreditCardStatementDayForm,
 } from "./credit-card-offset-form";
+import { CreditCardLimitForm } from "./credit-card-limit-form";
 import { type LoanRow } from "./loan-table";
 import { LoansTab } from "./loans-tab";
 import {
@@ -19,6 +22,7 @@ import {
   type BreakdownEntry,
 } from "@/components/money/category-breakdown";
 import {
+  appliesToSpendMonth,
   installmentMonths,
   shiftMonth,
   statementTotalsByCurrency,
@@ -52,6 +56,7 @@ export default async function ExpensesPage() {
         creditCardPaymentMonthOffset: true,
         baseCurrency: true,
         creditCardStatementDay: true,
+        creditCardMonthlyLimit: true,
       },
     }),
     prisma.expenseCategory.findMany({
@@ -279,6 +284,35 @@ export default async function ExpensesPage() {
     };
   });
 
+  /*
+   * Kart harcamasının ay bazında baz para birimi karşılığı — aylık sınırla
+   * karşılaştırılan sayı budur.
+   *
+   * `CreditCardSummary` toplamları para birimi başına ayrı tutuyor (35 USD
+   * ile 900 TRY'yi toplamamak için). Sınır ise tek bir sayı; karşılaştırma
+   * yapılabilmesi için çevrim burada, sunucuda yapılıyor. Taksitli harcama
+   * ALINDIĞI ayda tutarının tamamıyla sayılır — sınır bir harcama hedefi,
+   * ödeme planı değil.
+   */
+  const cardSpentBaseByMonth: Record<string, string> = {};
+  for (const month of cardMonths) {
+    let total = new Decimal(0);
+    for (const e of cardExpenses) {
+      const entry = {
+        date: format(e.date, "yyyy-MM-dd"),
+        paymentMonth: e.paymentMonth,
+        frequency: e.frequency,
+        installmentCount: e.installmentCount,
+        amount: Number(e.amount),
+      };
+      if (!appliesToSpendMonth(entry, month)) continue;
+      total = total.plus(
+        toBase(new Decimal(e.amount.toString()), e.currency, month)
+      );
+    }
+    cardSpentBaseByMonth[month] = total.toFixed(2);
+  }
+
   const spendingBreakdown: BreakdownEntry[] = [
     // Kategori adı ödeme yönteminden bağımsız: nakit ödenen "Yeme-İçme" ile
     // kartla ödenen "Yeme-İçme" tek kalemde toplanır — soru "toplam ne kadar
@@ -465,6 +499,11 @@ export default async function ExpensesPage() {
                 months={cardMonths}
                 offset={user.creditCardPaymentMonthOffset}
                 statementDay={user.creditCardStatementDay}
+                monthlyLimit={
+                  user.creditCardMonthlyLimit?.toString() ?? null
+                }
+                spentBaseByMonth={cardSpentBaseByMonth}
+                baseCurrency={baseCurrency}
                 ledgers={ledgers}
                 paidByMonth={paidByMonth}
                 currentMonth={currentMonth}
@@ -524,6 +563,9 @@ function CreditCardTab({
   months,
   offset,
   statementDay,
+  monthlyLimit,
+  spentBaseByMonth,
+  baseCurrency,
   ledgers,
   paidByMonth,
   currentMonth,
@@ -532,6 +574,11 @@ function CreditCardTab({
   months: string[];
   offset: number;
   statementDay: number;
+  /** Aylık kart harcama sınırı (baz para birimi); null = sınır yok. */
+  monthlyLimit: string | null;
+  /** Ay -> o ayın kart harcamasının baz para birimi karşılığı. */
+  spentBaseByMonth: Record<string, string>;
+  baseCurrency: string;
   paidByMonth: Record<string, Record<string, string>>;
   currentMonth: string;
   ledgers: {
@@ -548,10 +595,20 @@ function CreditCardTab({
   const primary = ledgers[0];
   const thisMonthRow = primary?.currentRow ?? null;
 
+  /*
+   * "Sınırı aştım mı" sorusunun cevabı şeritte, içinde bulunulan ay için.
+   * Aylık özetteki çubuk seçilen aya bakıyor; kullanıcı ay değiştirdiğinde
+   * bu kutunun da değişmesi, şeridin "şu an durumum" anlamını bozardı.
+   */
+  const limitStatus =
+    monthlyLimit === null
+      ? null
+      : cardLimitStatus(monthlyLimit, spentBaseByMonth[currentMonth] ?? "0");
+
   return (
     <div className="space-y-4">
       {thisMonthRow && primary && (
-        <StatStrip>
+        <StatStrip columns={limitStatus ? 5 : 4}>
           <Stat
             label={`${formatMonth(currentMonth)} ekstresi`}
             value={formatMoney(thisMonthRow.statement, primary.currency)}
@@ -581,6 +638,42 @@ function CreditCardTab({
             value={formatMoney(primary.upcomingTotal, primary.currency)}
             caption="henüz ödenmemiş ekstreler"
           />
+          {limitStatus && (
+            <Stat
+              label="Aylık sınır"
+              value={
+                limitStatus.over
+                  ? formatMoney(limitStatus.overage.toString(), baseCurrency)
+                  : formatMoney(limitStatus.remaining.toString(), baseCurrency)
+              }
+              tone={limitStatus.over ? "negative" : "default"}
+              caption={
+                limitStatus.over
+                  ? `aşıldı — %${Math.round(limitStatus.rawPercent)} kullanıldı`
+                  : `kaldı — %${Math.round(limitStatus.rawPercent)} kullanıldı`
+              }
+              info={
+                <CalcInfo title="Aylık kart sınırı nasıl sayılır">
+                  <p>
+                    Harcamanın <strong>yapıldığı aya</strong> göre sayılır,
+                    ekstrenin ödendiği aya göre değil: sınır bir harcama
+                    hedefi, ödeme planı değil. Taksitli alışveriş alındığı
+                    ayda tutarının tamamıyla girer.
+                  </p>
+                  <p>
+                    Farklı para birimindeki harcamalar, ait oldukları ayın
+                    kuruyla <strong>{baseCurrency}</strong>&apos;ye çevrilip
+                    toplanır — sınır tek bir sayı olduğu için karşılaştırma
+                    ancak tek para biriminde yapılabilir.
+                  </p>
+                  <p>
+                    Bu, bankanın kartına verdiği kredi limiti değildir; Kart
+                    ayarları&apos;ndan kendin koyduğun hedeftir.
+                  </p>
+                </CalcInfo>
+              }
+            />
+          )}
         </StatStrip>
       )}
 
@@ -604,6 +697,9 @@ function CreditCardTab({
         <div className="grid gap-4 p-4 sm:grid-cols-2">
           <CreditCardOffsetForm offset={offset} />
           <CreditCardStatementDayForm day={statementDay} />
+          <div className="sm:col-span-2">
+            <CreditCardLimitForm limit={monthlyLimit} currency={baseCurrency} />
+          </div>
         </div>
       </section>
 
@@ -655,6 +751,9 @@ function CreditCardTab({
                 months={months}
                 paidByMonth={paidByMonth}
                 defaultMonth={currentMonth}
+                monthlyLimit={monthlyLimit}
+                spentBaseByMonth={spentBaseByMonth}
+                baseCurrency={baseCurrency}
               />
             </div>
           </section>

@@ -107,6 +107,18 @@ model User {
    */
   creditCardStatementDay       Int          @default(4)
   /**
+   * Kart harcamaları için toplam aylık sınır, BAZ para biriminde.
+   *
+   * Kategori sınırlarıyla (ExpenseCategory.monthlyLimit) aynı fikir ama
+   * kategori kırılımından bağımsız: "kartla bu ay 40.000'i geçmeyeyim".
+   * Kartın bankadaki kredi limiti DEĞİL — o, borcun tamamına bakar; bu ise
+   * bir ayda yapılan harcamaya bakar ve kullanıcının kendi koyduğu hedeftir.
+   *
+   * null = sınır yok, arayüzde bölüm hiç görünmez. 0 geçerli bir hedeftir
+   * ("kartı hiç kullanmayacağım") ve sınır yokluğundan farklıdır.
+   */
+  creditCardMonthlyLimit       Decimal?     @db.Decimal(12, 2)
+  /**
    * Tanıtım turu tamamlanan sayfaların anahtarları. Sayfa başına bir kez
    * gösterilir; kullanıcı bazında tutulur ki tarayıcı/cihaz değişse de
    * tekrar çıkmasın.
