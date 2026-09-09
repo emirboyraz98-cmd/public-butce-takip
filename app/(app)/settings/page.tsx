@@ -115,15 +115,39 @@ export default async function SettingsPage() {
                 <dt className="eyebrow">Verilerini dışa aktar</dt>
                 <dd className="mt-1.5 space-y-2">
                   <p className="text-muted-foreground text-[12px] leading-snug">
-                    Dosyalar şifreni içermez. Excel dosyası gelir, gider ve
-                    kredi taksitlerini tek tabloda verir; yedek dosyası
-                    yatırım, maaş ve ayar dahil her şeyi kapsar.
+                    Hiçbiri şifreni içermez. Excel dosyalarında tutarlar hem
+                    kendi para biriminde hem de <strong>baz para biriminde</strong>{" "}
+                    yazar; toplama ve pivot ikinci sütunla yapılır, çünkü
+                    karışık para birimi toplanamaz.
                   </p>
+                  <ul className="text-muted-foreground space-y-1 text-[12px] leading-snug">
+                    <li>
+                      <strong className="text-foreground">Kayıt dökümü</strong>{" "}
+                      — girdiğin her kayıt tek satır; ekrandaki listenin
+                      aynısı.
+                    </li>
+                    <li>
+                      <strong className="text-foreground">Aylık döküm</strong>{" "}
+                      — her ay ne olduğu. Kira gibi tekrarlayanlar, kart
+                      taksitleri ve kredi taksitleri aylara yayılır, maaş da
+                      dahildir. Excel&apos;de pivot tablo kuracaksan bu.
+                    </li>
+                  </ul>
                   <div className="flex flex-wrap gap-2">
                     <Button asChild variant="outline" size="sm">
                       {/* download: tarayıcı dosyayı açmak yerine indirsin. */}
                       <a href="/api/export?format=csv" download>
-                        Excel (.csv)
+                        Kayıt dökümü (.csv)
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <a href="/api/export?format=csv&scope=monthly" download>
+                        Aylık döküm (.csv)
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <a href="/api/export?format=csv&scope=investments" download>
+                        Yatırımlar (.csv)
                       </a>
                     </Button>
                     <Button asChild variant="outline" size="sm">
