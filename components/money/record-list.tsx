@@ -24,6 +24,7 @@ import {
   type RecordKind,
   type RecordValues,
 } from "./record-dialog";
+import { ALL_TIME, DateRangeFilter, type DateRange } from "./date-range-filter";
 
 export type RecordRow = {
   id: string;
@@ -118,10 +119,61 @@ export function RecordList({
   const [isPending, startTransition] = useTransition();
 
   const active = filters.find((f) => f.value === filter) ?? filters[0];
-  const visible = useMemo(
+
+  const [range, setRange] = useState<DateRange>(ALL_TIME);
+  /*
+   * Aralık dışında başlamış ama hâlâ işleyen aylık kayıtlar (kira, abonelik)
+   * varsayılan olarak gizli: tabloda satırın kendi TARİHİ yazıyor ve
+   * "Eylül" filtresinde ocak tarihli bir satır görmek kafa karıştırıyor.
+   * Ama tamamen yok saymak da yanlış — o kira eylülde de ödeniyor. Çözüm
+   * saklamak değil, sayısını söyleyip kararı kullanıcıya bırakmak.
+   */
+  const [includeOngoing, setIncludeOngoing] = useState(false);
+
+  const byKind = useMemo(
     () => (active ? rows.filter(active.match) : rows),
     [rows, active]
   );
+
+  const inRange = useMemo(
+    () =>
+      byKind.filter(
+        (r) =>
+          (range.from === null || r.date >= range.from) &&
+          (range.to === null || r.date <= range.to)
+      ),
+    [byKind, range]
+  );
+
+  /** Aralıktan ÖNCE başlamış, hâlâ her ay işleyen kayıtlar. */
+  const ongoingBefore = useMemo(() => {
+    if (range.from === null) return [];
+    return byKind.filter(
+      (r) => r.frequency === "MONTHLY" && r.date < range.from!
+    );
+  }, [byKind, range.from]);
+
+  const visible = useMemo(() => {
+    if (!includeOngoing || ongoingBefore.length === 0) return inRange;
+    // Tarihe göre azalan: liste zaten sunucudan bu sırada geliyor.
+    return [...inRange, ...ongoingBefore].sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
+  }, [inRange, ongoingBefore, includeOngoing]);
+
+  /*
+   * "CSV indir" ekranda görüneni indirir. Aralık sunucuya da gönderiliyor:
+   * istemcide süzülmüş satırları göndermek, indirilen dosyanın ekrandakiyle
+   * tutmasını tesadüfe bırakırdı.
+   */
+  const csvUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (range.from) params.set("from", range.from);
+    if (range.to) params.set("to", range.to);
+    if (includeOngoing) params.set("ongoing", "1");
+    const query = params.toString();
+    return query ? `${csvHref}&${query}` : csvHref;
+  }, [csvHref, range, includeOngoing]);
 
   // Toplam yalnızca baz para birimine çevrilebilen satırlardan kuruluyor.
   // Çevrilemeyeni sayıya katmak, karışık para birimlerini toplamak olurdu.
@@ -178,7 +230,7 @@ export function RecordList({
         <div className="flex flex-wrap items-center gap-2">
           {extraActions}
           <Button asChild variant="outline" size="sm">
-            <a href={csvHref} download>
+            <a href={csvUrl} download>
               CSV indir
             </a>
           </Button>
@@ -193,6 +245,27 @@ export function RecordList({
           </Button>
         </div>
       </div>
+
+      <DateRangeFilter value={range} onChange={setRange} />
+
+      {ongoingBefore.length > 0 && (
+        <label className="border-border text-muted-foreground flex cursor-pointer flex-wrap items-center gap-2 border px-3 py-2 text-[12px] leading-snug">
+          <input
+            type="checkbox"
+            checked={includeOngoing}
+            onChange={(e) => setIncludeOngoing(e.target.checked)}
+            className="accent-primary size-4 shrink-0"
+          />
+          <span>
+            Aralıktan önce başlamış{" "}
+            <strong className="text-foreground">
+              {ongoingBefore.length} aylık tekrarlayan kayıt
+            </strong>{" "}
+            var (kira, abonelik gibi). Tarihleri eski ama bu aylarda da
+            işliyorlar — listeye eklemek için işaretle.
+          </span>
+        </label>
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="border-border flex flex-wrap border">
