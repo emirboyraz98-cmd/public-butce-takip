@@ -29,7 +29,7 @@ export default async function IncomeCategoriesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+        <h1 className="t-display">
           Gelir Kategorileri
         </h1>
         <Link

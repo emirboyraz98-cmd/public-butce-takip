@@ -53,7 +53,7 @@ export function CategoryBars({
   return (
     <section className="border-border border">
       <header className="border-border border-b-2 px-4 py-3">
-        <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+        <h2 className="t-section">
           Harcama dağılımı
         </h2>
         <p className="text-muted-foreground mt-0.5 text-[12px]">

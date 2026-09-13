@@ -6,10 +6,10 @@ import { LoginForm } from "./login-form";
 export default function LoginPage() {
   return (
     <div>
-      <h2 className="text-[26px] leading-none font-extrabold tracking-[-0.02em]">
+      <h2 className="t-display">
         Giriş yap
       </h2>
-      <p className="text-muted-foreground mt-1.5 text-[13px]">
+      <p className="t-body text-muted-foreground mt-1.5">
         Bütçe takip hesabına giriş yap.
       </p>
 

@@ -130,7 +130,7 @@ export function BreakdownPanel({
   return (
     <section className="border-border border">
       <header className="border-border border-b-2 px-4 py-3">
-        <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+        <h2 className="t-section">
           {formatMonth(month)} dökümü
         </h2>
         {projected && (

@@ -59,10 +59,10 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-4">
       <header>
-        <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+        <h1 className="t-display">
           Ayarlar
         </h1>
-        <p className="text-muted-foreground mt-1.5 text-[13px]">
+        <p className="t-body text-muted-foreground mt-1.5">
           @{user.username}
           {user.name && ` · ${user.name}`}
         </p>
@@ -72,7 +72,7 @@ export default async function SettingsPage() {
         <div className="flex min-w-0 flex-col gap-4">
           <section className="border-border border">
             <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+              <h2 className="t-section">
                 Ayarlar
               </h2>
             </header>
@@ -191,7 +191,7 @@ export default async function SettingsPage() {
 
           <section className="border-border border">
             <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+              <h2 className="t-section">
                 Gmail ile ekstre aktarımı
               </h2>
             </header>

@@ -22,7 +22,13 @@ export function StatStrip({
   className,
 }: {
   children: ReactNode;
-  /** Geniş ekrandaki hücre sayısı. Dar ekranda her zaman 1, orta ekranda 2. */
+  /**
+   * Geniş ekrandaki hücre sayısı. Dar ekranda her zaman 1, orta ekranda 2.
+   *
+   * Çağıran kaç kutu çizdiğini biliyor; sayıyı burada `Children.count` ile
+   * türetmek koşullu kutularda ({flag && <Stat/>}) yanlış sonuç veriyor —
+   * `false` da bir çocuk sayılıyor.
+   */
   columns?: 3 | 4 | 5;
   className?: string;
 }) {
@@ -63,24 +69,23 @@ export function Stat({
   info?: ReactNode;
 }) {
   return (
-    <div className="border-border border-t border-l px-4 py-3.5">
+    // Bölme çizgisi hairline: bunlar kartın İÇİNDEKİ ayrımlar, dış çerçeve
+    // zaten --border taşıyor. İkisi aynı kalınlıkta olunca şerit dört ayrı
+    // kutu gibi parçalanıyordu.
+    <div className="border-hairline border-t border-l px-4 py-3.5">
       <p className="eyebrow flex items-center gap-1.5">
         {label}
         {info}
       </p>
       <p
         className={cn(
-          "mt-1.5 text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[28px]",
+          "t-figure mt-1.5 text-[26px] sm:text-[28px]",
           tone === "negative" && "text-destructive"
         )}
       >
         {value}
       </p>
-      {caption && (
-        <p className="text-muted-foreground mt-2 text-[12px] leading-snug">
-          {caption}
-        </p>
-      )}
+      {caption && <p className="t-meta mt-2">{caption}</p>}
     </div>
   );
 }

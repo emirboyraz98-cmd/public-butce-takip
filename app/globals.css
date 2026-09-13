@@ -67,12 +67,35 @@
      burada daha koyu olanı kullanılıyor. */
   --destructive: #ae1800;
 
-  /* İki çizgi kalınlığı var ve ikisi ayrı iş yapıyor: 0.4 güçlü ayrım
-     (kart çerçevesi, bölüm başlığı altı), 0.16 satır arası tırnak çizgi. */
-  --border: rgba(32, 30, 29, 0.4);
-  --border-hairline: rgba(32, 30, 29, 0.16);
-  --input: rgba(32, 30, 29, 0.4);
+  /*
+   * ÇİZGİ DİSİPLİNİ — sistemin hiyerarşiyi kurduğu tek araç bu, o yüzden
+   * hangi çizginin nerede kullanılacağı serbest bırakılamaz.
+   *
+   *   --border           YAPISAL. Kart çerçevesi ve bölüm başlığı altı.
+   *                      Sayfayı bölen çizgi budur; sayfada azdır.
+   *   --border-hairline   İÇERİK. Kartın İÇİNDEKİ her ayrım: tablo satırı,
+   *                      liste öğesi, segment düğmesi arası.
+   *
+   * Önceden ikisi de yapısal kalınlıktaydı ve tablo satırı kart çerçevesi
+   * kadar bağırıyordu: göz sayfada tutunacak yer bulamıyordu. 0.4 -> 0.28
+   * inişi de bunun parçası — çerçeve hâlâ net ama artık içeriğin önüne
+   * geçmiyor.
+   */
+  --border: rgba(32, 30, 29, 0.28);
+  --border-hairline: rgba(32, 30, 29, 0.13);
+  --input: rgba(32, 30, 29, 0.28);
   --ring: #ec3013;
+
+  /*
+   * GÖMÜLÜ YÜZEY. Kartın içinde geri çekilmesi gereken bölgeler: tablo
+   * başlığı, yardım metni, grafik yatağı, boş durum.
+   *
+   * Kartı zeminden YUKARI kaldırmak (gölge, ayrı dolgu) bu dilin dışında
+   * ve öyle de kalıyor. Katmanı ters yönde kuruyoruz: kart zeminle aynı
+   * seviyede duruyor, ikincil bölgeler onun içine gömülüyor. Düz tasarımda
+   * "geri çekmek", "öne çıkarmak"ın dürüst karşılığı.
+   */
+  --surface-sunken: #eceaea;
 
   /* — Grafik paleti —
      Teslimat, önceki çok renkli kategorik paleti tek renk + kırmızıya
@@ -160,10 +183,14 @@
   /* Koyu zeminde #ae1800 okunmuyor; negatif tutarlar açık mercana dönüyor. */
   --destructive: #ff9783;
 
-  --border: rgba(243, 242, 242, 0.35);
-  --border-hairline: rgba(243, 242, 242, 0.16);
-  --input: rgba(243, 242, 242, 0.35);
+  --border: rgba(243, 242, 242, 0.24);
+  --border-hairline: rgba(243, 242, 242, 0.12);
+  --input: rgba(243, 242, 242, 0.24);
   --ring: #ec3013;
+
+  /* Koyu temada gömülü yüzey zeminden AÇIK değil koyu olamaz (zemin zaten
+     en koyu); bir basamak açılıyor. Yön değil, mesafe korunuyor. */
+  --surface-sunken: #292727;
 
   /* Gelir koyu zeminde mürekkep olamaz — zeminin kendisi mürekkep.
      Ters çevriliyor: gelir açık, gider parlak kırmızı. */
@@ -230,6 +257,7 @@
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-hairline: var(--border-hairline);
+  --color-sunken: var(--surface-sunken);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-overage: var(--overage);
@@ -273,5 +301,60 @@
   /* Satır arası tırnak çizgi — kart çerçevesinden ince, tablo satırları için. */
   .divide-hairline > * + * {
     border-top: 1px solid var(--border-hairline);
+  }
+
+  /*
+   * TİPOGRAFİ ÖLÇEĞİ.
+   *
+   * Sayfalar punto değerlerini tek tek yazıyordu (text-[13px], text-[18px],
+   * text-[26px]…) ve aynı rolün iki sayfada iki farklı puntosu vardı.
+   * Ölçek burada tanımlı; sayfa artık boyut değil ROL seçiyor.
+   */
+
+  /* Sayfa başlığı. Sistemin sesi: 800 ağırlık, sıkı aralık. */
+  .t-display {
+    font-size: 26px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+  }
+  @media (min-width: 640px) {
+    .t-display {
+      font-size: 30px;
+    }
+  }
+
+  /* Kart başlığı. */
+  .t-section {
+    font-size: 17px;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    line-height: 1.15;
+  }
+
+  /* Gövde metni — tabloların ve listelerin varsayılanı. */
+  .t-body {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  /* İkincil açıklama; gövdeden bir basamak sönük ve küçük. */
+  .t-meta {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--muted-foreground);
+  }
+
+  /*
+   * SAYI. Uygulamanın asıl içeriği bu; kendi rolü var.
+   *
+   * Sıkı harf aralığı ve tablo rakamları: kutular alt alta geldiğinde
+   * basamaklar dikey hizada kalsın. Punto kutunun kendi boyutundan gelir.
+   */
+  .t-figure {
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.05;
   }
 }

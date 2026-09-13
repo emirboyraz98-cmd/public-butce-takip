@@ -18,6 +18,7 @@ import { ScrollableTable } from "@/components/ui/scrollable-table";
 import { formatDate, formatPrice, formatQuantity } from "@/lib/format";
 import { parseDecimalInput } from "@/components/ui/decimal-input";
 import { deleteTransaction, updateTransaction } from "./actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type TransactionRow = {
   id: string;
@@ -177,9 +178,10 @@ export function TransactionLog({ transactions }: { transactions: TransactionRow[
 
   if (transactions.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        Henüz işlem kaydı yok. Yukarıdan bir alış ekleyerek başla.
-      </p>
+      <EmptyState
+        title="İşlem defteri boş"
+        description="Yukarıdaki formdan ilk alışını ekle. Sembol, adet ve birim fiyat yeterli — gerisini uygulama hesaplar."
+      />
     );
   }
 

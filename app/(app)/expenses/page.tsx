@@ -42,6 +42,7 @@ import {
   installmentSchedule,
   summarizeLoan,
 } from "@/lib/loans/schedule";
+import { Section } from "@/components/ui/section";
 
 export default async function ExpensesPage() {
   const session = await auth();
@@ -429,10 +430,10 @@ export default async function ExpensesPage() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Giderler
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             Kart harcamaları, nakit/havale giderleri ve kredi taksitleri.
           </p>
         </div>
@@ -465,27 +466,31 @@ export default async function ExpensesPage() {
                 />
 
                 {spendingBreakdown.length > 0 && (
-                  <section className="border-border border">
-                    <header className="border-border border-b-2 px-4 py-3">
-                      <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                        Harcama alışkanlığı
-                      </h2>
-                      <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                        Kart harcamaları, diğer giderler ve o ayın kredi
-                        taksitleri tek yerde.{" "}
-                        <strong>Ödemeyle ilgisi yoktur</strong> — paranın ne
-                        zaman çıktığına değil, harcamanın ne zaman yapıldığına
-                        bakar. Taksitli bir alışveriş, alındığı ayda tutarının
-                        tamamıyla görünür.
-                      </p>
-                    </header>
-                    <div className="p-4">
+                  <Section
+                    title="Harcama alışkanlığı"
+                    summary="Kart, nakit ve kredi taksitleri tek yerde."
+                    helpTitle="Ödeme değil, harcama tarihi"
+                    help={
+                      <>
+                        <p>
+                          Bu grafiğin <strong>ödemeyle ilgisi yoktur</strong>:
+                          paranın ne zaman çıktığına değil, harcamanın ne
+                          zaman yapıldığına bakar.
+                        </p>
+                        <p>
+                          Taksitli bir alışveriş, alındığı ayda tutarının
+                          tamamıyla görünür.
+                        </p>
+                      </>
+                    }
+                  >
+                    <div>
                       <CategoryBreakdown
                         entries={spendingBreakdown}
                         baseCurrency={baseCurrency}
                       />
                     </div>
-                  </section>
+                  </Section>
                 )}
               </div>
             ),
@@ -681,71 +686,78 @@ function CreditCardTab({
           ekstre defteri, özet ve kartın kendi ayarları kalıyor. Kayıt
           eklemek için ayrı bir form yok — Harcamalar sekmesindeki tek
           pencere ödeme türü segmentiyle kart kaydını da açıyor. */}
-      <section className="border-border border">
-        <header className="border-border border-b-2 px-4 py-3">
-          <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-            Kart ayarları
-          </h2>
-          <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-            Harcamanın <strong>yapıldığı tarih</strong> ile{" "}
-            <strong>ekstrenin ödendiği ay</strong> ayrı tutulur: kategori
-            dağılımı harcama tarihine, Genel Bakış&apos;taki nakit akışı ise
-            ödeme ayına göre hesaplanır. Buradaki iki ayar ödeme ayının
-            önerisini belirler; her kayıtta ayrıca değiştirilebilir.
-          </p>
-        </header>
-        <div className="grid gap-4 p-4 sm:grid-cols-2">
+      <Section
+        title="Kart ayarları"
+        summary="Yeni kayıtlarda ödeme ayının nasıl önerileceği ve aylık sınırın."
+        helpTitle="Harcama tarihi ile ekstre ayı neden ayrı"
+        help={
+          <>
+            <p>
+              Harcamanın <strong>yapıldığı tarih</strong> ile{" "}
+              <strong>ekstrenin ödendiği ay</strong> ayrı tutulur: kategori
+              dağılımı harcama tarihine, Genel Bakış&apos;taki nakit akışı
+              ise ödeme ayına göre hesaplanır.
+            </p>
+            <p>
+              Buradaki iki ayar yalnızca ödeme ayının önerisini belirler;
+              her kayıtta ayrıca değiştirilebilir.
+            </p>
+          </>
+        }
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
           <CreditCardOffsetForm offset={offset} />
           <CreditCardStatementDayForm day={statementDay} />
           <div className="sm:col-span-2">
             <CreditCardLimitForm limit={monthlyLimit} currency={baseCurrency} />
           </div>
         </div>
-      </section>
+      </Section>
 
       {/* Defter ve özet aynı ayın iki farklı okuması; benzer boyda ve
           birlikte bakılıyorlar. Alt alta dizildiklerinde kredi kartı
           sekmesi iki ekran boyu uzuyordu. */}
       <div className="grid gap-6 [&>*]:min-w-0 xl:grid-cols-2">
         {ledgers.map((ledger) => (
-          <section key={ledger.currency} className="border-border border">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                Ekstre defteri
-                {ledgers.length > 1 && ` — ${ledger.currency}`}
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                Uygulama varsayılan olarak ekstrenin tamamının ödendiğini kabul
-                eder. Asgari ödeme yaptığın bir ayda gerçekte ödediğin tutarı
-                &quot;Ödenen&quot; sütununa yazarsan, ödenmeyen kısım{" "}
-                <strong>sonraki ayın borcuna eklenir</strong> ve Genel
-                Bakış&apos;taki nakit akışı gerçekte cebinden çıkanı gösterir.
-                Kart ödemesini başka bir sekmeye gider olarak yazma; iki kez
-                sayılır.
-              </p>
-            </header>
-            <div className="p-4">
-              <CardLedger
-                rows={ledger.rows}
-                currency={ledger.currency}
-                upcomingTotal={ledger.upcomingTotal}
-                assumedAfterCarry={ledger.assumedAfterCarry}
-              />
-            </div>
-          </section>
+          <Section
+            key={ledger.currency}
+            title={
+              ledgers.length > 1
+                ? `Ekstre defteri — ${ledger.currency}`
+                : "Ekstre defteri"
+            }
+            summary="Ekstrenin tamamı ödendi sayılır; asgari ödediysen gerçek tutarı yaz."
+            helpTitle="Devreden borç nasıl işliyor"
+            help={
+              <>
+                <p>
+                  Asgari ödeme yaptığın bir ayda gerçekte ödediğin tutarı
+                  &quot;Ödenen&quot; sütununa yazarsan, ödenmeyen kısım{" "}
+                  <strong>sonraki ayın borcuna eklenir</strong> ve Genel
+                  Bakış&apos;taki nakit akışı gerçekte cebinden çıkanı
+                  gösterir.
+                </p>
+                <p>
+                  Kart ödemesini başka bir sekmeye gider olarak{" "}
+                  <strong>yazma</strong> — iki kez sayılır.
+                </p>
+              </>
+            }
+          >
+            <CardLedger
+              rows={ledger.rows}
+              currency={ledger.currency}
+              upcomingTotal={ledger.upcomingTotal}
+              assumedAfterCarry={ledger.assumedAfterCarry}
+            />
+          </Section>
         ))}
         {months.length > 0 && (
-          <section className="border-border border">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                Aylık özet
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                Bir ayda ne kadar harcadığın ile o ay cebinden ne kadar çıktığı
-                farklı sayılardır; ikisi de burada.
-              </p>
-            </header>
-            <div className="p-4">
+          <Section
+            title="Aylık özet"
+            summary="Bir ayda ne harcadığın ile o ay cebinden ne çıktığı farklı sayılar."
+          >
+            <div>
               <CreditCardSummary
                 entries={summaryEntries}
                 months={months}
@@ -756,7 +768,7 @@ function CreditCardTab({
                 baseCurrency={baseCurrency}
               />
             </div>
-          </section>
+          </Section>
         )}
       </div>
 

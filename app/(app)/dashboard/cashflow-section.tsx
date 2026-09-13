@@ -8,6 +8,7 @@ import {
   type CashFlowView,
 } from "@/components/charts/CashFlowChart";
 import { cn } from "@/lib/utils";
+import { CalcInfo } from "@/components/ui/calc-info";
 import { BreakdownPanel } from "./breakdown-panel";
 import { CategoryBars, type CategoryShare } from "./category-bars";
 
@@ -75,12 +76,30 @@ export function CashflowSection({
       <section className="border-border flex min-w-0 flex-col border">
         <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b-2 px-4 py-3">
           <div>
-            <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+            <h2 className="t-section">
               Nakit Akışı
+              {/*
+                Grafiği okuma talimatı grafiğin ALTINDA dört satırlık bir
+                paragraftı ve her ziyarette orada duruyordu; bir kez
+                öğrenilen bir şey için kalıcı yer. İşareti başlıkta,
+                metni balonda.
+              */}
+              <span className="ml-1.5 align-middle">
+                <CalcInfo title="Grafik nasıl okunur">
+                  <p>
+                    Çubukların üstünde aylık toplamlar, eksenin altında o
+                    ayın neti yazar.
+                  </p>
+                  <p>
+                    Bir sütunun üzerine gelince <strong>kalem kalem</strong>{" "}
+                    dökümü balonda çıkar; <strong>tıklarsan</strong> yandaki
+                    döküm o aya sabitlenir.
+                  </p>
+                  <p>İçi boş çubuklar projeksiyondur.</p>
+                </CalcInfo>
+              </span>
             </h2>
-            <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-              {note}
-            </p>
+            <p className="t-meta mt-1">{note}</p>
           </div>
           <div className="border-border flex flex-none border">
             {VIEWS.map((v) => (
@@ -91,7 +110,7 @@ export function CashflowSection({
                 aria-pressed={view === v.value}
                 className={cn(
                   "min-h-11 px-3 text-[13px] font-semibold sm:min-h-9",
-                  "border-border border-l first:border-l-0",
+                  "border-hairline border-l first:border-l-0",
                   view === v.value
                     ? "bg-primary text-primary-foreground"
                     : "hover:bg-muted"
@@ -114,12 +133,6 @@ export function CashflowSection({
           />
         </div>
 
-        <p className="text-muted-foreground border-border mt-auto border-t px-4 py-2.5 text-[12px] leading-snug">
-          Çubukların üstünde aylık toplamlar, eksenin altında o ayın neti
-          yazar. Bir sütunun üzerine gelince <strong>kalem kalem</strong>{" "}
-          dökümü balonda çıkar; <strong>tıklarsan</strong> yandaki döküm o aya
-          sabitlenir. İçi boş çubuklar projeksiyondur.
-        </p>
       </section>
 
       <div className="flex min-w-0 flex-col gap-4">

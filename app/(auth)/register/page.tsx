@@ -5,10 +5,10 @@ import { RegisterForm } from "./register-form";
 export default function RegisterPage() {
   return (
     <div>
-      <h2 className="text-[26px] leading-none font-extrabold tracking-[-0.02em]">
+      <h2 className="t-display">
         Kayıt ol
       </h2>
-      <p className="text-muted-foreground mt-1.5 text-[13px]">
+      <p className="t-body text-muted-foreground mt-1.5">
         Bütçe, yatırım ve maaş takibi için hesap oluştur.
       </p>
 

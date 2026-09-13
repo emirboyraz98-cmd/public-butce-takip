@@ -12,6 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ScrollableTable } from "@/components/ui/scrollable-table";
+import { EmptyState } from "@/components/ui/empty-state";
 import {
   formatMoney,
   formatPrice,
@@ -70,9 +71,12 @@ export function HoldingsTable({ holdings }: { holdings: HoldingRow[] }) {
 
   if (holdings.length === 0) {
     return (
-      <p className="text-muted-foreground px-4 py-6 text-[13px]">
-        Pozisyon yok. İşlem defterinden bir alış ekleyince burada görünecek.
-      </p>
+      <div className="p-4">
+        <EmptyState
+          title="Henüz açık pozisyonun yok"
+          description="Aşağıdaki işlem defterinden bir alış ekle; adet, ortalama maliyet ve kâr/zarar buradan otomatik hesaplanır."
+        />
+      </div>
     );
   }
 

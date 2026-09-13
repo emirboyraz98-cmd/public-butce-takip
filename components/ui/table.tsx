@@ -32,7 +32,10 @@ function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
   return (
     <thead
       data-slot="table-header"
-      className={cn("[&_tr]:border-b", className)}
+      // Başlık satırı gömülü yüzeyde: sütun adları veriyle aynı düzlemde
+      // durunca tablonun nerede başladığı okunmuyordu. Düz tasarımda bandı
+      // geri çekmek, kalın çizgi eklemekten daha sessiz bir ayrım.
+      className={cn("bg-sunken [&_tr]:border-b", className)}
       {...props}
     />
   );

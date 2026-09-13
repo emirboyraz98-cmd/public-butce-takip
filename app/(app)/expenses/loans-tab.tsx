@@ -26,7 +26,7 @@ export function LoansTab({
     <section className="border-border border">
       <header className="border-border flex flex-wrap items-start justify-between gap-3 border-b-2 px-4 py-3">
         <div>
-          <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+          <h2 className="t-section">
             Krediler
           </h2>
           <p className="text-muted-foreground mt-0.5 max-w-prose text-[12px] leading-snug">
