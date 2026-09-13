@@ -129,6 +129,8 @@ export function RecordList({
    * saklamak değil, sayısını söyleyip kararı kullanıcıya bırakmak.
    */
   const [includeOngoing, setIncludeOngoing] = useState(false);
+  /** Dar ekranda filtre bloğu katlı başlar. */
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const byKind = useMemo(
     () => (active ? rows.filter(active.match) : rows),
@@ -160,6 +162,14 @@ export function RecordList({
       b.date.localeCompare(a.date)
     );
   }, [inRange, ongoingBefore, includeOngoing]);
+
+  /** Katlıyken de ne süzüldüğünü söyleyen kısa etiket. */
+  const rangeLabel =
+    range.from === null && range.to === null
+      ? null
+      : `${range.from ? formatDate(range.from) : "başlangıç"} – ${
+          range.to ? formatDate(range.to) : "bugün"
+        }`;
 
   /*
    * "CSV indir" ekranda görüneni indirir. Aralık sunucuya da gönderiliyor:
@@ -246,10 +256,57 @@ export function RecordList({
         </div>
       </div>
 
-      <DateRangeFilter value={range} onChange={setRange} />
+      {/*
+        Telefonda veriye inmeden beş sıra kontrol vardı: sayaç+düğmeler,
+        hazır aralıklar, iki tarih kutusu, tür çipleri, toplam. Ekranın
+        yarısı listeye değil listeyi süzmeye ayrılıyordu.
+
+        Filtreler artık dar ekranda katlı; açık olup olmadığı ve seçili
+        aralık düğmenin üstünde yazıyor, yani katlıyken de ne süzüldüğü
+        görünüyor. Geniş ekranda değişen bir şey yok — orada yer sorun
+        değil ve bir tık daha istemek gereksiz.
+      */}
+      <button
+        type="button"
+        onClick={() => setFiltersOpen((v) => !v)}
+        aria-expanded={filtersOpen}
+        className="border-border flex min-h-11 w-full items-center justify-between gap-2 border px-3 text-[13px] font-semibold lg:hidden"
+      >
+        <span>
+          Filtrele
+          {rangeLabel && (
+            <span className="text-muted-foreground ml-1.5 font-normal">
+              {rangeLabel}
+            </span>
+          )}
+        </span>
+        <span aria-hidden className="text-muted-foreground">
+          {filtersOpen ? "▲" : "▼"}
+        </span>
+      </button>
+
+      <div className={cn("contents", !filtersOpen && "max-lg:hidden")}>
+        <DateRangeFilter value={range} onChange={setRange} />
+      </div>
+
+      {/* Toplam katlıyken de görünür: filtre panelinin içine gömülmesi,
+          süzme yapan kişinin asıl merak ettiği sayıyı gizliyordu. */}
+      {!filtersOpen && (
+        <p className="text-[13px] lg:hidden">
+          <span className="eyebrow mr-1.5 inline">Toplam</span>
+          <strong className="text-[15px]">
+            {formatMoney(total, baseCurrency)}
+          </strong>
+        </p>
+      )}
 
       {ongoingBefore.length > 0 && (
-        <label className="border-border text-muted-foreground flex cursor-pointer flex-wrap items-center gap-2 border px-3 py-2 text-[12px] leading-snug">
+        <label
+          className={cn(
+            "border-border text-muted-foreground flex cursor-pointer flex-wrap items-center gap-2 border px-3 py-2 text-[12px] leading-snug",
+            !filtersOpen && "max-lg:hidden"
+          )}
+        >
           <input
             type="checkbox"
             checked={includeOngoing}
@@ -267,7 +324,12 @@ export function RecordList({
         </label>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div
+        className={cn(
+          "flex flex-wrap items-center justify-between gap-x-4 gap-y-2",
+          !filtersOpen && "max-lg:hidden"
+        )}
+      >
         <div className="border-border flex flex-wrap border">
           {filters.map((f, i) => (
             <button

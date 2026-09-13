@@ -14,7 +14,7 @@ import {
 } from "recharts";
 
 import { Button } from "@/components/ui/button";
-import { formatMonth, formatNumber } from "@/lib/format";
+import { formatCompactNumber, formatMonth, formatNumber } from "@/lib/format";
 import type { MonthlyPoint } from "@/lib/investments/monthlySeries";
 
 type View = "value" | "pl";
@@ -83,7 +83,13 @@ export function PortfolioTrendChart({
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
           <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 12 }} width={80} />
+          {/* Eksen etiketi ayraçsız ham sayıydı (100000): hem okunmuyor hem
+            de diğer grafiklerin kısaltılmış diliyle (100B) çelişiyordu. */}
+        <YAxis
+          tick={{ fontSize: 12 }}
+          width={58}
+          tickFormatter={formatCompactNumber}
+        />
           <Tooltip
             labelFormatter={(label) => formatMonth(String(label))}
             formatter={(value) =>

@@ -58,7 +58,15 @@ export function Tabs({
         role="tablist"
         aria-label={ariaLabel}
         onKeyDown={onKeyDown}
-        className="border-border flex flex-wrap gap-1 border-b"
+        /*
+         * Telefonda sekmeler ikinci satıra kırılıyordu ("Bekleyen
+         * aktarımlar" tek başına alt sıraya düşüyor ve sekme şeridi
+         * bozuk görünüyordu). Kırmak yerine yatay kaydırma: şeridin tek
+         * satır olduğu her ekranda okunur kalıyor, sığmadığında da
+         * kaydırılıyor. Kaydırma çubuğu gizli — kenardaki yarım sekme
+         * zaten devamı olduğunu söylüyor.
+         */
+        className="border-border flex gap-1 overflow-x-auto border-b [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         {items.map((item) => {
           const selected = item.key === active;
@@ -76,7 +84,7 @@ export function Tabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(item.key)}
               className={cn(
-                "-mb-px min-h-11 border-b-2 px-4 py-2 text-sm font-semibold transition-colors sm:min-h-9",
+                "-mb-px min-h-11 shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition-colors sm:min-h-9",
                 selected
                   ? "border-primary text-accent-text"
                   : "text-muted-foreground hover:text-foreground border-transparent"

@@ -11,7 +11,7 @@ import {
   YAxis,
 } from "recharts";
 
-import { formatMonth, formatNumber } from "@/lib/format";
+import { formatCompactNumber, formatMonth, formatNumber } from "@/lib/format";
 
 export type SalaryPoint = {
   month: string;
@@ -48,7 +48,13 @@ export function SalaryTrendChart({
       <LineChart data={data}>
         <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
         <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 12 }} />
-        <YAxis tick={{ fontSize: 12 }} width={70} />
+        {/* Eksen etiketi ayraçsız ham sayıydı (100000): hem okunmuyor hem
+            de diğer grafiklerin kısaltılmış diliyle (100B) çelişiyordu. */}
+        <YAxis
+          tick={{ fontSize: 12 }}
+          width={48}
+          tickFormatter={formatCompactNumber}
+        />
         <Tooltip
           labelFormatter={(label) => formatMonth(String(label))}
           formatter={(value) =>
