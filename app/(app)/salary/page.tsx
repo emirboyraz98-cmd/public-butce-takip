@@ -7,11 +7,13 @@ import { recomputeMissingMonths } from "@/lib/salary/computeAndSave";
 import { buildMonthCalendar } from "@/lib/salary/monthCalendar";
 import { toDateKey } from "@/lib/salary/holidayCalendar";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
+import { cn } from "@/lib/utils";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { formatMoney, formatMonth } from "@/lib/format";
 import { SalaryReconciliationTable } from "./salary-results-table";
 import { SalaryCalendarCard } from "./salary-calendar-card";
 import { SalaryTrendChart, type SalaryPoint } from "@/components/charts/SalaryTrendChart";
+import { Section } from "@/components/ui/section";
 
 export default async function SalaryPage() {
   const session = await auth();
@@ -175,15 +177,21 @@ export default async function SalaryPage() {
    * maaşı gün sayısından geliyormuş gibi okunurdu.
    */
   const workedDays = latestCalendar ? latestCalendar.counts.NORMAL : null;
+  /*
+   * Maaş zaten TRY ise çevrilecek bir şey yok. Kutu brüt kutusunun aynısını
+   * tekrarlıyor ve altına "kur verisi yok" yazıyordu — sanki eksik bir veri
+   * varmış gibi. Sabit TRY maaş alan herkes bu ikilemeyi görüyordu.
+   */
+  const showTryEquivalent = latest !== null && latest.currency !== "TRY";
 
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Maaş
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             Her ay, o ayı kapsayan baz maaş döneminin türüyle hesaplanır —
             gün bazlı ya da sabit. Türü Maaş ayarları&apos;ndan dönem dönem
             seçersin.
@@ -228,7 +236,12 @@ export default async function SalaryPage() {
       )}
 
       {latest && (
-        <StatStrip>
+        /*
+         * Maaş zaten baz para birimindeyse çevrilecek bir şey yok: kutu
+         * brüt kutusunun aynısını tekrarlıyor ve altına "kur verisi yok"
+         * yazıyordu — eksik veri varmış gibi. O durumda kutu hiç çizilmiyor.
+         */
+        <StatStrip columns={showTryEquivalent ? 4 : 3}>
           <Stat
             label={`${formatMonth(latest.month)} brüt`}
             value={formatMoney(latest.total, latest.currency)}
@@ -240,15 +253,17 @@ export default async function SalaryPage() {
                   : "gün bazlı"
             }
           />
-          <Stat
-            label="TRY karşılığı"
-            value={latestTry === null ? "—" : formatMoney(latestTry, "TRY")}
-            caption={
-              latestRate === null
-                ? "kur verisi yok"
-                : `${latest.actualAmount !== null ? "gerçekleşenden" : "hesaplanandan"} · TCMB ${latest.fxRateMonth ?? latest.month} ortalaması`
-            }
-          />
+          {showTryEquivalent && (
+            <Stat
+              label="TRY karşılığı"
+              value={latestTry === null ? "—" : formatMoney(latestTry, "TRY")}
+              caption={
+                latestRate === null
+                  ? "kur verisi yok"
+                  : `${latest.actualAmount !== null ? "gerçekleşenden" : "hesaplanandan"} · TCMB ${latest.fxRateMonth ?? latest.month} ortalaması`
+              }
+            />
+          )}
           <Stat
             label="Çalışılan gün"
             value={workedDays === null ? "—" : String(workedDays)}
@@ -300,69 +315,100 @@ export default async function SalaryPage() {
         tablonun altına inmek zorunda kalıyordu. Dönem tablosu kalkınca sol
         sütun hafiflediğinden genişlik de takvime kaydı (420 → 460).
       */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_460px]">
+      {/*
+        Takvim yalnızca değişken dönemi olanlarda çiziliyor; sütun her
+        durumda ayrılınca sabit maaşlı kullanıcı ekranın ~%40'ını boş bir
+        yuvaya veriyordu.
+      */}
+      <div
+        className={cn(
+          "grid gap-4",
+          hasVariable && "xl:grid-cols-[minmax(0,1fr)_460px]"
+        )}
+      >
         <div className="order-2 flex min-w-0 flex-col gap-4 xl:order-1">
-          <section className="border-border border">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                Hesaplanan / gerçekleşen
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                Bankaya yatan tutarı <strong>Gerçekleşen</strong> hücresine
-                tıklayıp yaz. <strong>Fark</strong> tek para biriminde
-                kalıyor: araya kur girseydi, eksik ödemeden mi kur
-                hareketinden mi geldiği anlaşılmazdı.{" "}
-                <strong>TRY karşılığı</strong> ise gerçekleşen girildiğinde
-                onun üzerinden hesaplanır — cebe giren gerçek tutar o.
-                {hasVariable &&
-                  " Nominal USD toplamı takvimde işaretlenen günlerden bulunur, TCMB ortalama kuruyla düzeltilir."}
-              </p>
-            </header>
+          <Section
+            title="Hesaplanan / gerçekleşen"
+            summary="Bankaya yatan tutarı Gerçekleşen hücresine tıklayıp yaz."
+            helpTitle="Fark ve TRY karşılığı nasıl okunur"
+            padded={false}
+            help={
+              <>
+                <p>
+                  <strong>Fark</strong> tek para biriminde kalıyor: araya kur
+                  girseydi, eksik ödemeden mi kur hareketinden mi geldiği
+                  anlaşılmazdı.
+                </p>
+                <p>
+                  <strong>TRY karşılığı</strong> ise gerçekleşen girildiğinde
+                  onun üzerinden hesaplanır — cebe giren gerçek tutar o.
+                </p>
+                {hasVariable && (
+                  <p>
+                    Nominal USD toplamı takvimde işaretlenen günlerden
+                    bulunur, TCMB ortalama kuruyla düzeltilir.
+                  </p>
+                )}
+              </>
+            }
+          >
             <SalaryReconciliationTable results={resultRows} />
-          </section>
+          </Section>
 
           {trend.length >= 2 && (
-            <section className="border-border border">
-              <header className="border-border border-b-2 px-4 py-3">
-                <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                  Maaş değişimi
-                </h2>
-                <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                  Aylık hesaplanan tutarın seyri ({salaryCurrency}). Gerçekleşen
-                  ödeme girdiğin aylarda ikisi birlikte gösterilir.
+            <Section
+              title="Maaş değişimi"
+              summary={
+                trendExcluded > 0
+                  ? `Aylık hesaplanan tutarın seyri (${salaryCurrency}) — ${trendExcluded} ay dışarıda.`
+                  : `Aylık hesaplanan tutarın seyri (${salaryCurrency}).`
+              }
+              help={
+                <>
+                  <p>
+                    Gerçekleşen ödeme girdiğin aylarda hesaplanan ve
+                    gerçekleşen birlikte gösterilir.
+                  </p>
                   {trendExcluded > 0 && (
-                    <>
-                      {" "}
+                    <p>
                       Başka para birimindeki{" "}
                       <strong>{trendExcluded} ay</strong> grafiğe girmiyor:
                       iki para birimi tek eksende karşılaştırılamaz.
-                    </>
+                    </p>
                   )}
-                </p>
-              </header>
-              <div className="p-4">
-                <SalaryTrendChart data={trend} currency={salaryCurrency} />
-              </div>
-            </section>
+                </>
+              }
+            >
+              <SalaryTrendChart data={trend} currency={salaryCurrency} />
+            </Section>
           )}
         </div>
 
         {hasVariable && (
-          <section className="border-border order-1 h-fit border xl:order-2">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                Çalışma takvimi
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                <strong>Değişken</strong> dönemlerde maaşın tek girişi burası.
-                Günlere tıkla ya da sürükleyerek aralık seç, sonra{" "}
-                <strong>Çalışıldı</strong> / <strong>İzin</strong> uygula; her gün sabit 7.5 saat normal +
-                2.5 saat mesai sayılır, saat girişi yapılmaz. İşaretsiz günler
-                kesikli çerçeveyle gösterilir ve maaşa hiç katılmaz. Değişiklik
-                yaptığın aylar otomatik yeniden hesaplanır.
-              </p>
-            </header>
-            <div className="p-4">
+          <Section
+            title="Çalışma takvimi"
+            summary="Değişken dönemlerde maaşın tek girişi burası."
+            helpTitle="Takvim nasıl kullanılır"
+            className="order-1 h-fit xl:order-2"
+            help={
+              <>
+                <p>
+                  Günlere tıkla ya da sürükleyerek aralık seç, sonra{" "}
+                  <strong>Çalışıldı</strong> / <strong>İzin</strong> uygula.
+                </p>
+                <p>
+                  Çalışılan her gün sabit 7.5 saat normal + 2.5 saat mesai
+                  sayılır; saat girişi yapılmaz.
+                </p>
+                <p>
+                  İşaretsiz günler kesikli çerçeveyle gösterilir ve maaşa hiç
+                  katılmaz. Değişiklik yaptığın aylar otomatik yeniden
+                  hesaplanır.
+                </p>
+              </>
+            }
+          >
+            <div>
               <SalaryCalendarCard
                 holidayDates={[...holidayDateKeys]}
                 markedDays={markedDays}
@@ -372,7 +418,7 @@ export default async function SalaryPage() {
                 initialMonth={thisMonth}
               />
             </div>
-          </section>
+          </Section>
         )}
       </div>
     </div>

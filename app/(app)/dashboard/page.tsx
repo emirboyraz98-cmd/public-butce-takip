@@ -35,7 +35,12 @@ import {
   parseRange,
   RANGE_COOKIE,
 } from "@/lib/dashboard/rangePreference";
-import { formatMoneyWhole, formatMonth, formatSignedWhole } from "@/lib/format";
+import {
+  formatMoneyWhole,
+  formatMonth,
+  formatPercent,
+  formatSignedWhole,
+} from "@/lib/format";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
 import type { CashFlowPoint } from "@/components/charts/CashFlowChart";
@@ -120,6 +125,16 @@ export default async function DashboardPage({
       ]).catch(() => null),
     ]);
 
+  /*
+   * Canlı kur YALNIZCA portföy kalemlerini ilgilendiriyor: nakit akışı
+   * tutarları ayın TCMB ortalamasıyla (getMonthlyAverageRates) çevriliyor,
+   * o tamamen ayrı bir kaynak.
+   *
+   * Uyarı eskiden canlı kur her düştüğünde çıkıyor ve "aşağıdaki rakamlar
+   * çevrilmeden toplandı" diyordu — oysa nakit akışı çevrilmiş oluyordu ve
+   * hiç yatırımı olmayan kullanıcıda etkilenen tek bir sayı bile yoktu.
+   * Doğru olmayan bir uyarı, doğru olanları da okunmaz hale getiriyor.
+   */
   const fxUnavailable = fxRates === null;
   const [tryToBaseRate, usdToBaseRate] = fxRates ?? [
     new Decimal(1),
@@ -207,18 +222,29 @@ export default async function DashboardPage({
   // alınamayan holding'ler piyasa değerine girmediği için maliyeti de
   // sayılmamalı, yoksa yüzde olduğundan kötü çıkar.
   let totalCost = new Decimal(0);
+  /*
+   * Kur uyarısı ancak çevrilmesi GEREKEN bir tutar varsa anlamlı: baz para
+   * biriminde duran (ya da hiç olmayan) pozisyonlar için çevrim yapılmıyor,
+   * dolayısıyla kurun düşmesi hiçbir sayıyı bozmuyor.
+   */
+  let hasForeignHolding = false;
 
   for (const holding of holdings) {
     const price = priceSnapshots.find(
       (p) => p.symbol === holding.symbol && p.assetType === holding.assetType
     );
     if (!price) continue;
+    if (price.currency !== baseCurrency) hasForeignHolding = true;
 
     const pl = computeHoldingPL(holding.quantity, holding.avgCostBasis, price.price);
     totalMarketValue = totalMarketValue.plus(toBaseSync(pl.marketValue, price.currency));
     totalPL = totalPL.plus(toBaseSync(pl.unrealizedPL, price.currency));
     totalCost = totalCost.plus(toBaseSync(pl.costBasis, price.currency));
   }
+
+  const fxAffectsPortfolio = fxUnavailable && hasForeignHolding;
+  /** Gösterilecek bir pozisyon var mı — yoksa yatırım kutuları çizilmiyor. */
+  const hasPortfolio = holdings.length > 0;
 
   const salaryByMonth = new Map(
     salaryResults.map((r) => [
@@ -643,29 +669,44 @@ export default async function DashboardPage({
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div className="min-w-0">
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Genel Bakış
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             {rangeLabel} · {user.name ?? user.username}
           </p>
         </div>
         <DashboardFilters from={from} to={to} />
       </header>
 
-      {fxUnavailable && (
+      {fxAffectsPortfolio && (
         <div className="border-destructive bg-accent text-accent-foreground border px-4 py-3">
-          <p className="text-[14px] font-extrabold">Kur bilgisi alınamadı</p>
+          <p className="text-[14px] font-extrabold">
+            Portföy değeri güncel kurla çevrilemedi
+          </p>
           <p className="mt-1 text-[13px] leading-snug">
             Döviz kuru kaynağına şu an ulaşılamıyor ve önbellekte de kayıtlı
-            bir kur yok. Farklı para birimlerindeki tutarlar çevrilmeden
-            toplandığı için aşağıdaki rakamlar <strong>karma</strong> ve
+            bir kur yok. Bu yüzden <strong>Portföy değeri</strong> ve{" "}
+            <strong>Açık pozisyon K/Z</strong> kutuları, farklı para
+            birimindeki pozisyonlar çevrilmeden toplandığı için karma ve
             yanıltıcı olabilir. Kur geldiğinde kendiliğinden düzelir.
+            <span className="block">
+              Nakit akışı bundan etkilenmez: oradaki tutarlar ait oldukları
+              ayın TCMB ortalama kuruyla çevriliyor.
+            </span>
           </p>
         </div>
       )}
 
-      <StatStrip>
+      {/*
+        Yatırım kutuları yalnızca pozisyonu olana. Hiç yatırım yapmayan
+        kullanıcıda şeridin yarısı "0 TRY" yazan iki kutuydu ve asıl
+        sorusunun cevabı (net nakit akışı) sağa sıkışıyordu. Sıfır bir
+        bilgi değil, burada yalnızca gürültü.
+      */}
+      <StatStrip columns={hasPortfolio ? 4 : 3}>
+        {hasPortfolio && (
+          <>
         <Stat
           label="Portföy değeri"
           value={formatMoneyWhole(totalMarketValue.toNumber(), baseCurrency)}
@@ -692,7 +733,7 @@ export default async function DashboardPage({
           caption={
             totalCost.isZero()
               ? "maliyet kaydı yok"
-              : `maliyete göre %${totalPL.div(totalCost).times(100).toFixed(1)}`
+              : `maliyete göre ${formatPercent(totalPL.div(totalCost).times(100).toNumber(), { digits: 1, sign: true })}`
           }
           info={
             <CalcInfo title="Açık Pozisyon Kâr/Zarar nasıl hesaplanır">
@@ -710,6 +751,8 @@ export default async function DashboardPage({
             </CalcInfo>
           }
         />
+          </>
+        )}
         <Stat
           label={`${formatMonth(summaryPoint.month)} net nakit akışı`}
           value={formatSignedWhole(summaryPoint.net, baseCurrency)}

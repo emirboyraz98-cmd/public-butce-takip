@@ -12,8 +12,14 @@ import {
   type PriceLookup,
 } from "@/lib/investments/monthlySeries";
 import { convert } from "@/lib/fx/convert";
-import { formatMoneyWhole, formatSignedWhole } from "@/lib/format";
+import {
+  formatMoneyWhole,
+  formatPercent,
+  formatSignedWhole,
+} from "@/lib/format";
 import { CalcInfo } from "@/components/ui/calc-info";
+import { Section } from "@/components/ui/section";
+import { cn } from "@/lib/utils";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
 import { CategoryPieChart } from "@/components/charts/CategoryPieChart";
 import { PortfolioTrendChart } from "@/components/charts/PortfolioTrendChart";
@@ -304,14 +310,17 @@ export default async function InvestmentsPage() {
   const signed = (v: Decimal) =>
     formatSignedWhole(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
 
+  /** Sağ sütunun içeriği var mı — yoksa yuva hiç ayrılmıyor. */
+  const hasSidePanel = trend.length >= 2 || allocation.length > 0;
+
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Yatırımlar
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             Açık pozisyonlar, dağılım ve işlem defteri. Tutarlar{" "}
             {baseCurrency} karşılığıyla toplanır.
           </p>
@@ -377,7 +386,7 @@ export default async function InvestmentsPage() {
             caption={
               totalCost.isZero()
                 ? "maliyet kaydı yok"
-                : `maliyete göre %${totalPL.div(totalCost).times(100).toFixed(1)}`
+                : `maliyete göre ${formatPercent(totalPL.div(totalCost).times(100).toNumber(), { digits: 1, sign: true })}`
             }
             info={
               <CalcInfo title="Kâr/Zarar nasıl hesaplanır">
@@ -450,98 +459,103 @@ export default async function InvestmentsPage() {
         YANINDAYDI; tablo dokuz sütunlu ve yarım genişlikte yatay kaydırmaya
         düşüyordu.
       */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+      {/*
+        Sağ sütun yalnızca grafik ya da dağılım varken çiziliyor; sütun her
+        durumda ayrılınca yeni kullanıcı ekranın ~%25'ini boş bir yuvaya
+        veriyordu.
+      */}
+      <div
+        className={cn(
+          "grid gap-4",
+          hasSidePanel && "xl:grid-cols-[minmax(0,1fr)_340px]"
+        )}
+      >
         <div className="flex min-w-0 flex-col gap-4">
-          <section className="border-border border">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                Açık pozisyonlar
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                Adet ve ortalama maliyet işlem defterinden otomatik hesaplanır:
-                alışlar ağırlıklı ortalamaya katılır, satışlar adetten düşülür
-                ve gerçekleşen kâr/zarara yazılır. Tamamen satılmış
-                pozisyonlar &quot;Kapanan&quot; filtresinde durur. Fiyatlar
-                CoinGecko ve Yahoo Finance üzerinden çekilir, 5 dakika
-                önbelleklenir.
-              </p>
-            </header>
+          <Section
+            title="Açık pozisyonlar"
+            summary="Adet ve ortalama maliyet işlem defterinden otomatik hesaplanır."
+            helpTitle="Pozisyonlar nasıl türetilir"
+            padded={false}
+            help={
+              <>
+                <p>
+                  Alışlar ağırlıklı ortalama maliyete katılır, satışlar
+                  adetten düşülür ve gerçekleşen kâr/zarara yazılır.
+                </p>
+                <p>
+                  Tamamen satılmış pozisyonlar elde bir şey kalmadığı için
+                  &quot;Kapanan&quot; filtresinde durur.
+                </p>
+                <p>
+                  Fiyatlar CoinGecko ve Yahoo Finance üzerinden çekilir ve 5
+                  dakika önbelleklenir.
+                </p>
+              </>
+            }
+          >
             <HoldingsTable holdings={rows} />
-          </section>
+          </Section>
 
-
-          <section className="border-border border">
-            <header className="border-border border-b-2 px-4 py-3">
-              <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                İşlem defteri
-              </h2>
-              <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                Her alış ve satış ayrı bir kayıttır. Yanlış girdiğin bir işlemi
-                &quot;Düzenle&quot; ile yerinde düzeltebilirsin; üstteki
-                ortalama maliyet ve kâr/zarar hesapları buna göre yeniden
-                hesaplanır. Adet alanı kesirli değer kabul eder.
-              </p>
-            </header>
-            <div className="space-y-4 p-4">
+          <Section
+            title="İşlem defteri"
+            summary="Her alış ve satış ayrı bir kayıt; üstteki hesaplar buradan türüyor."
+            helpTitle="İşlem defteri nasıl çalışır"
+            help={
+              <>
+                <p>
+                  Yanlış girdiğin bir işlemi &quot;Düzenle&quot; ile yerinde
+                  düzeltebilirsin; ortalama maliyet ve kâr/zarar hesapları
+                  buna göre yeniden hesaplanır.
+                </p>
+                <p>Adet alanı kesirli değer kabul eder.</p>
+              </>
+            }
+          >
+            <div className="space-y-4">
               <TransactionForm />
               <TransactionLog transactions={logRows} />
             </div>
-          </section>
+          </Section>
+
           {manualSymbols.length > 0 && (
-            <section className="border-border border">
-              <header className="border-border border-b-2 px-4 py-3">
-                <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                  Manuel fiyatlar
-                </h2>
-                <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                  Otomatik çekilemeyen semboller için fiyatı elle gir.
-                </p>
-              </header>
-              <div className="space-y-4 p-4">
+            <Section
+              title="Manuel fiyatlar"
+              summary="Otomatik çekilemeyen semboller için fiyatı elle gir."
+            >
+              <div className="space-y-4">
                 {manualSymbols.map((symbol) => (
                   <ManualPriceForm key={symbol} symbol={symbol} />
                 ))}
               </div>
-            </section>
+            </Section>
           )}
         </div>
 
-        <div className="flex min-w-0 flex-col gap-4">
-          {trend.length >= 2 && (
-            <section className="border-border border">
-              <header className="border-border border-b-2 px-4 py-3">
-                <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                  Portföy detayı
-                </h2>
-                <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                  Ay sonlarındaki durum ({baseCurrency}).
-                </p>
-              </header>
-              <div className="p-3">
+        {hasSidePanel && (
+          <div className="flex min-w-0 flex-col gap-4">
+            {trend.length >= 2 && (
+              <Section
+                title="Portföy detayı"
+                summary={`Ay sonlarındaki durum (${baseCurrency}).`}
+                className="p-0"
+              >
                 <PortfolioTrendChart data={trend} currency={baseCurrency} />
-              </div>
-            </section>
-          )}
+              </Section>
+            )}
 
-          {allocation.length > 0 && (
-            <section className="border-border border">
-              <header className="border-border border-b-2 px-4 py-3">
-                <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-                  Dağılım
-                </h2>
-                <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-                  Açık pozisyonların güncel piyasa değerine göre ağırlıkları.
-                </p>
-              </header>
-              <div className="p-4">
+            {allocation.length > 0 && (
+              <Section
+                title="Dağılım"
+                summary="Açık pozisyonların güncel piyasa değerine göre ağırlıkları."
+              >
                 <CategoryPieChart
                   slices={allocation}
                   currency={fxUnavailable ? "" : baseCurrency}
                 />
-              </div>
-            </section>
-          )}
-        </div>
+              </Section>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

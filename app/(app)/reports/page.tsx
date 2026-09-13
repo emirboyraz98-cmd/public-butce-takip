@@ -6,11 +6,12 @@ import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
 import { monthlyTotals } from "@/lib/cashflow/monthlyTotals";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
-import { formatMoneyWhole, formatMonth } from "@/lib/format";
+import { formatMoneyWhole, formatMonth, formatPercent } from "@/lib/format";
 import { MetricChart } from "./metric-chart";
 import { RangeFilters } from "./range-filters";
 import type { SerializedMonth } from "./serialize";
 import { ShareList } from "@/components/money/share-list";
+import { Section } from "@/components/ui/section";
 
 const MAX_MONTHS = 24;
 
@@ -188,10 +189,10 @@ export default async function ReportsPage({
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Raporlar
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             {formatMonth(from)} — {formatMonth(to)} · {months.length} ay
           </p>
         </div>
@@ -203,17 +204,25 @@ export default async function ReportsPage({
       </section>
 
       <div className="grid gap-4 xl:grid-cols-2">
-        <section className="border-border border">
-          <header className="border-border border-b-2 px-4 py-3">
-            <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-              Kategoriye göre {months.length} ay toplamı
-            </h2>
-            <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-              Harcamanın <strong>yapıldığı tarihe</strong> göre — kartın ne
-              zaman ödendiğine bakmaz. Bu yüzden yukarıdaki gider toplamıyla
-              birebir tutmayabilir; o, paranın cepten çıktığı ayı kullanıyor.
-            </p>
-          </header>
+        <Section
+          title={`Kategoriye göre ${months.length} ay toplamı`}
+          summary="Harcamanın yapıldığı tarihe göre."
+          helpTitle="Neden yukarıdaki toplamla tutmuyor"
+          padded={false}
+          help={
+            <>
+              <p>
+                Bu liste harcamanın <strong>yapıldığı tarihi</strong> kullanır
+                — kartın ne zaman ödendiğine bakmaz.
+              </p>
+              <p>
+                Yukarıdaki gider grafiği ise paranın <strong>cepten çıktığı
+                ayı</strong> kullanıyor. İkisi farklı soruları yanıtladığı
+                için toplamları birebir tutmayabilir.
+              </p>
+            </>
+          }
+        >
           {categoryRows.length === 0 ? (
             <p className="text-muted-foreground px-4 py-8 text-center text-[13px]">
               Bu aralıkta harcama kaydı yok.
@@ -221,17 +230,14 @@ export default async function ReportsPage({
           ) : (
             <ShareList rows={categoryRows} currency={baseCurrency} />
           )}
-        </section>
+        </Section>
 
-        <section className="border-border h-fit border">
-          <header className="border-border border-b-2 px-4 py-3">
-            <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-              Öne çıkanlar
-            </h2>
-            <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-              Seçili aralıktan çıkan gözlemler.
-            </p>
-          </header>
+        <Section
+          title="Öne çıkanlar"
+          summary="Seçili aralıktan çıkan gözlemler."
+          padded={false}
+          className="h-fit"
+        >
           {highlights.length === 0 ? (
             <p className="text-muted-foreground px-4 py-8 text-center text-[13px]">
               Gözlem çıkarmak için en az iki aylık veri gerekiyor.
@@ -241,14 +247,14 @@ export default async function ReportsPage({
               {highlights.map((h) => (
                 <li key={h.title} className="px-4 py-3">
                   <p className="text-[14px] font-semibold">{h.title}</p>
-                  <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
+                  <p className="t-meta mt-1">
                     {h.detail}
                   </p>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </Section>
       </div>
     </div>
   );
@@ -279,7 +285,7 @@ function buildHighlights(
   );
   out.push({
     title: `En yüksek giderli ay: ${formatMonth(priciest.month)}`,
-    detail: `${formatMoneyWhole(priciest.expenses.toNumber(), currency)} harcandı — aralıktaki ${withData.length} ay içinde en yükseği.`,
+    detail: `${formatMoneyWhole(priciest.expenses.toNumber(), currency)} harcandı — veri olan ${withData.length} ay içinde en yükseği.`,
   });
 
   const best = withData.reduce((a, b) =>
@@ -314,7 +320,7 @@ function buildHighlights(
       .times(100)
       .toNumber();
     out.push({
-      title: `Dönem tasarruf oranı %${rate.toFixed(1)}`,
+      title: `Dönem tasarruf oranı ${formatPercent(rate, { digits: 1 })}`,
       detail: `${formatMoneyWhole(totalIncome.toNumber(), currency)} gelire karşı ${formatMoneyWhole(totalExpenses.toNumber(), currency)} gider.`,
     });
   }

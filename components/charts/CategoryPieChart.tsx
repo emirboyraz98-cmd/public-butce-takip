@@ -3,7 +3,7 @@
 import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { useIsMobile } from "@/hooks/use-is-mobile";
-import { formatMoney } from "@/lib/format";
+import { formatMoney, formatPercent } from "@/lib/format";
 import { colorForIndex, foldToTopN, type Slice } from "@/lib/charts/palette";
 
 /**
@@ -47,7 +47,7 @@ function SliceTooltip({
         {name}
       </div>
       <div className="text-muted-foreground mt-0.5">
-        {formatMoney(value, currency)} · %{share(value).toFixed(1)}
+        {formatMoney(value, currency)} · {formatPercent(share(value), { digits: 1 })}
       </div>
     </div>
   );
@@ -109,7 +109,7 @@ export function CategoryPieChart({
               ? false
               : ({ name, value }) =>
                   share(Number(value)) >= 5
-                    ? `${name} %${share(Number(value)).toFixed(0)}`
+                    ? `${name} ${formatPercent(share(Number(value)), { digits: 0 })}`
                     : ""
           }
           labelLine={false}
@@ -153,7 +153,7 @@ export function CategoryPieChart({
             />
             <span className="truncate">{slice.name}</span>
             <span className="text-muted-foreground ml-auto shrink-0 tabular-nums">
-              %{share(slice.value).toFixed(0)}
+              {formatPercent(share(slice.value), { digits: 0 })}
             </span>
             <span className="w-32 shrink-0 text-right font-medium tabular-nums">
               {formatMoney(slice.value, currency)}

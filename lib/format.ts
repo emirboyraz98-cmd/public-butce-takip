@@ -175,7 +175,10 @@ export function formatCompactNumber(value: number | string): string {
  */
 export function formatPercent(
   value: number | string,
-  { sign = false }: { sign?: boolean } = {}
+  {
+    sign = false,
+    digits = 2,
+  }: { sign?: boolean; digits?: 0 | 1 | 2 } = {}
 ): string {
   const num = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(num)) return "—";
@@ -185,9 +188,26 @@ export function formatPercent(
   // farklı uzunlukta iki çizgiyle gösteriyordu.
   const prefix = num < 0 ? "-" : sign && num > 0 ? "+" : "";
   const formatted = new Intl.NumberFormat("tr-TR", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   }).format(Math.abs(num));
 
   return `${prefix}%${formatted}`;
+}
+
+/**
+ * Paydası sıfır olabilen oranlar için: `a`'nın `b` içindeki yüzdesi.
+ *
+ * Sıfıra bölme her çağrı yerinde ayrı ayrı ele alınıyordu ve bazı yerlerde
+ * hiç ele alınmıyordu — `0/0` NaN, `5/0` Infinity üretip arayüze sızıyordu.
+ * Payda sıfırsa null döner; çağıran ne yazacağına kendi karar verir.
+ */
+export function percentShare(
+  part: number | string,
+  whole: number | string
+): number | null {
+  const p = typeof part === "string" ? Number(part) : part;
+  const w = typeof whole === "string" ? Number(whole) : whole;
+  if (!Number.isFinite(p) || !Number.isFinite(w) || w === 0) return null;
+  return (p / w) * 100;
 }

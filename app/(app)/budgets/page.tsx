@@ -7,11 +7,12 @@ import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
 import { summarizeBudgets } from "@/lib/budget/calculations";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
-import { formatMoneyWhole, formatMonth } from "@/lib/format";
+import { formatMoneyWhole, formatMonth, formatPercent } from "@/lib/format";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { BudgetRows, type BudgetRow } from "./budget-rows";
 import { MonthPicker } from "./month-picker";
+import { Section } from "@/components/ui/section";
 
 export default async function BudgetsPage({
   searchParams,
@@ -95,10 +96,10 @@ export default async function BudgetsPage({
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
         <div>
-          <h1 className="text-[26px] leading-none font-extrabold tracking-[-0.02em] sm:text-[30px]">
+          <h1 className="t-display">
             Bütçeler
           </h1>
-          <p className="text-muted-foreground mt-1.5 text-[13px]">
+          <p className="t-body text-muted-foreground mt-1.5">
             Kategori başına aylık sınır ve o ayın gerçekleşmesi.
           </p>
         </div>
@@ -166,24 +167,32 @@ export default async function BudgetsPage({
                 // doğru ek sayıya göre değişiyor (%20'si, %3'ü, %91'i).
                 // Sayıyı ekten kurtarmak, her sayıda doğru kalmanın tek
                 // güvenli yolu.
-                `bütçe kullanımı: %${summary.totalSpent.div(summary.totalLimit).times(100).toFixed(0)}`
+                `bütçe kullanımı: ${formatPercent(summary.totalSpent.div(summary.totalLimit).times(100).toNumber(), { digits: 0 })}`
           }
         />
       </StatStrip>
 
-      <section className="border-border border">
-        <header className="border-border border-b-2 px-4 py-3">
-          <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
-            Kategori bütçeleri
-          </h2>
-          <p className="text-muted-foreground mt-0.5 text-[12px] leading-snug">
-            Tutarın üstüne tıklayıp sınırı yaz. Sınırı kaldırmak kategoriyi
-            bütçe takibinden çıkarır; <strong>0</strong> yazmak ise geçerli bir
-            hedef — &quot;bu kategoriye hiç harcama yapmayacağım&quot; demek.
-          </p>
-        </header>
+      <Section
+        title="Kategori bütçeleri"
+        summary="Tutarın üstüne tıklayıp sınırı yaz."
+        helpTitle="Sınır koymak, kaldırmak, sıfırlamak"
+        padded={false}
+        help={
+          <>
+            <p>
+              Sınırı <strong>kaldırmak</strong> kategoriyi bütçe takibinden
+              çıkarır: harcaması üstteki toplamlara hiç girmez.
+            </p>
+            <p>
+              <strong>0</strong> yazmak ise geçerli bir hedef — &quot;bu
+              kategoriye hiç harcama yapmayacağım&quot; demek. İkisi farklı
+              şeyler.
+            </p>
+          </>
+        }
+      >
         <BudgetRows rows={rows} currency={baseCurrency} />
-      </section>
+      </Section>
     </div>
   );
 }

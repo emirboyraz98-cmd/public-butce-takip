@@ -13,7 +13,12 @@ import {
 } from "recharts";
 
 import { cn } from "@/lib/utils";
-import { formatCompactNumber, formatMoney, formatMonth } from "@/lib/format";
+import {
+  formatCompactNumber,
+  formatMoneyWhole,
+  formatMonth,
+  formatPercent,
+} from "@/lib/format";
 import {
   buildMetricFromSerialized,
   type SerializedMonth,
@@ -37,8 +42,6 @@ export function MetricChart({
   const metric = buildMetricFromSerialized(key, months);
 
   const isPercent = metric.unit === "percent";
-  const fmt = (v: number) =>
-    isPercent ? `%${v.toFixed(1)}` : formatMoney(v, currency);
 
   return (
     <div className="space-y-3">
@@ -65,12 +68,22 @@ export function MetricChart({
       </div>
 
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h2 className="text-[18px] font-extrabold tracking-[-0.015em]">
+        <h2 className="t-section">
           {metric.title}
         </h2>
         <p className="text-[13px]">
           <span className="eyebrow mr-1.5 inline">{metric.summaryLabel}</span>
-          <strong className="text-[16px]">{fmt(metric.summary)}</strong>
+          <strong className="text-[16px]">
+            {/*
+              Dönem toplamı türetilmiş bir sayı, kullanıcının girdiği tutar
+              değil: kuruşu bilgi taşımıyor ama başlıkta yer kaplıyor.
+              Kutulardaki diğer toplamlar da (Genel Bakış, Bütçeler)
+              kuruşsuz; aynı ekranda iki farklı biçim görünmesin.
+            */}
+            {isPercent
+              ? formatPercent(metric.summary, { digits: 1 })
+              : formatMoneyWhole(metric.summary, currency)}
+          </strong>
         </p>
       </div>
 
@@ -95,7 +108,7 @@ export function MetricChart({
               tick={{ fontSize: 11 }}
               width={isPercent ? 42 : 52}
               tickFormatter={(v: number) =>
-                isPercent ? `%${Math.round(v)}` : formatCompactNumber(v)
+                isPercent ? formatPercent(v, { digits: 0 }) : formatCompactNumber(v)
               }
             />
             <Bar dataKey="value" isAnimationActive={false}>
@@ -125,7 +138,7 @@ export function MetricChart({
                   const n = Number(v);
                   if (!Number.isFinite(n)) return "";
                   return isPercent
-                    ? `%${Math.round(n)}`
+                    ? formatPercent(n, { digits: 0 })
                     : formatCompactNumber(n);
                 }}
                 className="fill-foreground"
