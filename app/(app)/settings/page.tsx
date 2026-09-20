@@ -8,6 +8,7 @@ import { BaseCurrencySegment } from "@/components/layout/base-currency-segment";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { ReplayTourButton } from "./replay-tour-button";
 import { GmailImport, type TokenRow } from "./gmail-import";
+import { importTokenHealth } from "@/lib/import/tokenHealth";
 
 /**
  * Uygulama ayarları.
@@ -49,11 +50,17 @@ export default async function SettingsPage() {
     }),
   ]);
 
+  /*
+   * Canlılık durumu SUNUCUDA hesaplanıyor: istemcide `new Date()` ile
+   * kıyaslamak sunucunun ürettiği HTML ile uyuşmayıp hidrasyonu bozardı.
+   */
+  const now = new Date();
   const tokenRows: TokenRow[] = tokens.map((t) => ({
     id: t.id,
     label: t.label,
     createdAt: t.createdAt.toISOString().slice(0, 10),
     lastUsedAt: t.lastUsedAt?.toISOString().slice(0, 10) ?? null,
+    health: importTokenHealth(t.lastUsedAt, now),
   }));
 
   return (

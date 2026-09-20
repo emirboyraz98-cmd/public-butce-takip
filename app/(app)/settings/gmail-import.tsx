@@ -7,6 +7,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatDate } from "@/lib/format";
+import {
+  describeSilence,
+  type TokenHealth,
+} from "@/lib/import/tokenHealth";
 import { createImportToken, revokeImportToken } from "./import-token-actions";
 
 export type TokenRow = {
@@ -14,6 +18,8 @@ export type TokenRow = {
   label: string | null;
   createdAt: string;
   lastUsedAt: string | null;
+  /** Sunucuda hesaplanan canlılık durumu. */
+  health: TokenHealth;
 };
 
 /**
@@ -280,8 +286,9 @@ export function GmailImport({
             {tokens.map((t) => (
               <li
                 key={t.id}
-                className="border-border flex flex-wrap items-center justify-between gap-2 border px-3 py-2"
+                className="border-border flex flex-col gap-2 border px-3 py-2"
               >
+                <div className="flex flex-wrap items-center justify-between gap-2">
                 <span>
                   {t.label ?? "Adsız"}{" "}
                   <span className="text-muted-foreground text-xs">
@@ -310,6 +317,39 @@ export function GmailImport({
                 >
                   İptal et
                 </Button>
+                </div>
+
+                {/*
+                  Sessiz arıza uyarısı. Script yeni mail olmasa da 10 dakikada
+                  bir yoklama gönderiyor; damga ilerlemiyorsa aktarım durmuş
+                  demektir. Bu güne kadar tek belirti "harcamalarım gelmiyor"
+                  olduğu için haftalar sonra fark ediliyordu.
+                */}
+                {t.health.state === "stale" && (
+                  <p className="border-destructive text-foreground border px-2.5 py-2 text-xs leading-snug">
+                    <strong>
+                      Son {describeSilence(t.health.hoursAgo)} hiç yoklama
+                      gelmedi — aktarım durmuş olabilir.
+                    </strong>
+                    <span className="text-muted-foreground block">
+                      Apps Script normalde 10 dakikada bir, yeni mail olmasa
+                      bile bağlanır. Google, üst üste hata veren tetikleyicileri
+                      kendiliğinden devre dışı bırakır. Apps Script&apos;te{" "}
+                      <strong>Tetikleyiciler</strong> listesini ve{" "}
+                      <strong>Yürütmeler</strong> sekmesindeki hataları kontrol
+                      et; gerekirse <code>kur</code> fonksiyonunu bir kez daha
+                      çalıştır.
+                    </span>
+                  </p>
+                )}
+
+                {t.health.state === "never" && (
+                  <p className="border-border text-muted-foreground border px-2.5 py-2 text-xs leading-snug">
+                    Bu anahtarla henüz hiç bağlanılmadı. Apps Script
+                    kurulumunda <code>kur</code> fonksiyonunu çalıştırmayı
+                    atlamış olabilirsin — tetikleyiciyi o kuruyor.
+                  </p>
+                )}
               </li>
             ))}
           </ul>
