@@ -34,7 +34,13 @@ export type CashFlowPoint = {
   /** Yatırımdan NET çekilen para (cebe giren). */
   investmentIn: number;
   /** Balonda gösterilen brüt döküm — netin nereden geldiğini açıklar. */
-  investmentGross: { bought: number; sold: number; realizedPL: number };
+  investmentGross: {
+    bought: number;
+    sold: number;
+    deposited: number;
+    withdrawn: number;
+    realizedPL: number;
+  };
   /**
    * `loanPayments` toplamını oluşturan krediler. Tek bir "Kredi Taksiti"
    * çubuğunda birden fazla kredi toplandığı için, hangi kredilerden geldiği
@@ -399,6 +405,14 @@ function InvestmentDetail({
   const rows: [string, string][] = [];
   if (gross.bought > 0) rows.push(["Alım", money(gross.bought)]);
   if (gross.sold > 0) rows.push(["Satış", money(gross.sold)]);
+  // Transferler alım satım değil; kendi satırlarında duruyorlar ki
+  // "Alım" rakamı gerçekten alınan tutarı göstersin.
+  if (gross.deposited > 0) {
+    rows.push(["Hesaba yatırılan", money(gross.deposited)]);
+  }
+  if (gross.withdrawn > 0) {
+    rows.push(["Hesaptan çekilen", money(gross.withdrawn)]);
+  }
   if (gross.realizedPL !== 0) {
     rows.push([
       gross.realizedPL > 0 ? "Realize kâr" : "Realize zarar",

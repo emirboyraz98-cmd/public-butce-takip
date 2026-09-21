@@ -146,3 +146,154 @@ describe("freeCashBalance", () => {
     expect(balance.toString()).toBe("0");
   });
 });
+
+/**
+ * Bir alım/satıma bağlı olmayan transferler: yatırım hesabı ile cep
+ * arasında giden gelen para.
+ */
+const mv = (
+  date: string,
+  direction: "DEPOSIT" | "WITHDRAWAL",
+  amount: number
+) => ({
+  direction,
+  amount: new Decimal(amount),
+  currency: "TRY",
+  occurredAt: new Date(`${date}T00:00:00Z`),
+});
+
+describe("nakit hareketleri — çekme", () => {
+  it("serbest nakdi düşürür", () => {
+    const balance = freeCashBalance({
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-03-04", "WITHDRAWAL", 400)],
+      toBase: identity,
+    });
+    expect(balance.toString()).toBe("600");
+  });
+
+  it("parayı satış ayına değil ÇEKİLDİĞİ aya yazar", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-03-04", "WITHDRAWAL", 400)],
+      months: ["2026-01", "2026-02", "2026-03"],
+      toBase: identity,
+    });
+    // Ocak'ta satış var ama para borsada kaldı: cebe hiçbir şey girmedi.
+    expect(r.get("2026-01")!.netInvested.toString()).toBe("0");
+    expect(r.get("2026-03")!.withdrawn.toString()).toBe("400");
+    expect(r.get("2026-03")!.netInvested.toString()).toBe("-400");
+  });
+
+  it("çekimi Alım/Satış sütunlarına karıştırmaz", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-01-20", "WITHDRAWAL", 400)],
+      months: ["2026-01"],
+      toBase: identity,
+    });
+    // Bu iki alan kullanıcıya "Alım" ve "Satış" olarak gösteriliyor.
+    expect(r.get("2026-01")!.bought.toString()).toBe("0");
+    expect(r.get("2026-01")!.sold.toString()).toBe("0");
+  });
+
+  it("aynı gün satılıp çekilen parayı kırpmaz", () => {
+    // Kayıt sırası ne olursa olsun: giriş, aynı günkü çıkıştan önce işlenir.
+    const balance = freeCashBalance({
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-01-10", "WITHDRAWAL", 1000)],
+      toBase: identity,
+    });
+    expect(balance.toString()).toBe("0");
+  });
+
+  it("olmayan parayı çektirmez, eksiye düşmez", () => {
+    const balance = freeCashBalance({
+      transactions: [tx("2026-01-10", "SELL", 1, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-02-01", "WITHDRAWAL", 5000)],
+      toBase: identity,
+    });
+    expect(balance.toString()).toBe("0");
+  });
+
+  it("kırpılan çekimde yalnızca gerçekten çıkan parayı nakde yazar", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [tx("2026-01-10", "SELL", 1, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-02-01", "WITHDRAWAL", 5000)],
+      months: ["2026-01", "2026-02"],
+      toBase: identity,
+    });
+    expect(r.get("2026-02")!.withdrawn.toString()).toBe("100");
+  });
+});
+
+describe("nakit hareketleri — yatırma", () => {
+  it("serbest nakde eklenir", () => {
+    const balance = freeCashBalance({
+      transactions: [],
+      cashMovements: [mv("2026-01-05", "DEPOSIT", 2000)],
+      toBase: identity,
+    });
+    expect(balance.toString()).toBe("2000");
+  });
+
+  it("parayı yatırıldığı ayda cepten çıkmış sayar", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [],
+      cashMovements: [mv("2026-01-05", "DEPOSIT", 2000)],
+      months: ["2026-01"],
+      toBase: identity,
+    });
+    expect(r.get("2026-01")!.deposited.toString()).toBe("2000");
+    expect(r.get("2026-01")!.netInvested.toString()).toBe("2000");
+  });
+
+  it("sonraki alımı fonlar, parayı İKİNCİ kez cepten çıkarmaz", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [tx("2026-02-10", "BUY", 8, 100)],
+      cashMovements: [mv("2026-01-05", "DEPOSIT", 2000)],
+      months: ["2026-01", "2026-02"],
+      toBase: identity,
+    });
+    // Para ocakta çıktı; şubattaki alım serbest nakitten karşılanıyor.
+    expect(r.get("2026-01")!.netInvested.toString()).toBe("2000");
+    expect(r.get("2026-02")!.bought.toString()).toBe("0");
+    expect(r.get("2026-02")!.fromFreeCash.toString()).toBe("800");
+    expect(r.get("2026-02")!.netInvested.toString()).toBe("0");
+  });
+
+  it("yatırılandan fazla alımda aradaki farkı cepten yazar", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [tx("2026-02-10", "BUY", 30, 100)],
+      cashMovements: [mv("2026-01-05", "DEPOSIT", 2000)],
+      months: ["2026-01", "2026-02"],
+      toBase: identity,
+    });
+    expect(r.get("2026-02")!.bought.toString()).toBe("1000");
+    expect(r.get("2026-02")!.fromFreeCash.toString()).toBe("2000");
+  });
+});
+
+describe("freeCashBalance — geçmişe dönük bakiye", () => {
+  it("`until` sonrasındaki hareketleri saymaz", () => {
+    const args = {
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      cashMovements: [mv("2026-03-04", "WITHDRAWAL", 400)],
+      toBase: identity,
+    };
+    // Şubat sonu itibarıyla mart çekimi henüz olmamıştı.
+    expect(
+      freeCashBalance({ ...args, until: new Date("2026-02-28T23:59:59Z") }).toString()
+    ).toBe("1000");
+    expect(freeCashBalance(args).toString()).toBe("600");
+  });
+
+  it("`until` gününün kendisini dahil eder", () => {
+    const balance = freeCashBalance({
+      transactions: [tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false })],
+      toBase: identity,
+      until: new Date("2026-01-10T00:00:00Z"),
+    });
+    expect(balance.toString()).toBe("1000");
+  });
+});

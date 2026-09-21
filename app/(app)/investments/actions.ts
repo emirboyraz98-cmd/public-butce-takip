@@ -1,15 +1,20 @@
 "use server";
 
+import Decimal from "decimal.js";
 import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  cashMovementSchema,
   manualPriceSchema,
   transactionSchema,
   transactionUpdateSchema,
 } from "@/lib/validation/investments";
 import { refreshPrice } from "@/lib/investments/priceCache";
+import { freeCashBalance } from "@/lib/investments/cashFlow";
+import { convert, type Currency } from "@/lib/fx/convert";
+import { formatMoney } from "@/lib/format";
 
 type ActionState = { error?: string; success?: boolean; info?: string };
 
@@ -232,5 +237,150 @@ export async function setManualPrice(
   });
 
   revalidatePath("/investments");
+  return { success: true };
+}
+
+/**
+ * Bir tarih itibarıyla yatırım hesabındaki serbest nakit — baz para
+ * biriminde.
+ *
+ * Çekim doğrulaması için gerekiyor: BUGÜNKÜ bakiyeye bakmak, araya giren
+ * alımları görmezden gelip geçmişe olmayan bir para çekimi yazılmasına izin
+ * verirdi.
+ *
+ * Kur YALNIZCA veride gerçekten geçen para birimleri için isteniyor. Önce
+ * hem TRY hem USD kuru isteniyordu; her şeyin TRY olduğu bir hesapta bile
+ * USD kuruna ulaşılamayınca doğrulama sessizce atlanıyor ve olmayan para
+ * çekilebiliyordu. Gereken bir kur gerçekten alınamazsa `null` dönülür ve
+ * doğrulama atlanır — kur yüzünden kayıt girilememesi, kırpmayla idare
+ * etmekten daha kötü.
+ */
+async function freeCashAt(
+  userId: string,
+  until: Date,
+  requestCurrency: Currency
+): Promise<{ available: Decimal; baseCurrency: Currency } | null> {
+  const [user, transactions, movements] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { baseCurrency: true },
+    }),
+    prisma.investmentTransaction.findMany({ where: { userId } }),
+    prisma.investmentCashMovement.findMany({ where: { userId } }),
+  ]);
+
+  const baseCurrency = user.baseCurrency;
+  const needed = new Set<Currency>([
+    requestCurrency,
+    ...transactions.map((t) => t.currency),
+    ...movements.map((m) => m.currency),
+  ]);
+
+  const rates = new Map<Currency, Decimal>();
+  for (const currency of needed) {
+    const rate = await convert(1, currency, baseCurrency).catch(() => null);
+    if (rate === null) return null;
+    rates.set(currency, rate);
+  }
+
+  const toBase = (amount: Decimal, currency: string) =>
+    new Decimal(amount).mul(rates.get(currency as Currency) ?? 1);
+
+  const available = freeCashBalance({
+    transactions: transactions.map((t) => ({
+      symbol: t.symbol,
+      assetType: t.assetType,
+      side: t.side,
+      quantity: new Decimal(t.quantity.toString()),
+      pricePerUnit: new Decimal(t.pricePerUnit.toString()),
+      currency: t.currency,
+      tradedAt: t.tradedAt,
+      createdAt: t.createdAt,
+      isOpening: t.isOpening,
+      proceedsWithdrawn: t.proceedsWithdrawn,
+    })),
+    cashMovements: movements.map((m) => ({
+      direction: m.direction,
+      amount: new Decimal(m.amount.toString()),
+      currency: m.currency,
+      occurredAt: m.occurredAt,
+    })),
+    toBase,
+    until,
+  });
+
+  return { available, baseCurrency };
+}
+
+export async function createCashMovement(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const parsed = cashMovementSchema.safeParse({
+    direction: formData.get("direction"),
+    amount: Number(formData.get("amount")),
+    currency: formData.get("currency"),
+    occurredAt: formData.get("occurredAt"),
+    note: (formData.get("note") as string | null) || null,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Geçersiz bilgi" };
+  }
+
+  const { direction, amount, currency, occurredAt, note } = parsed.data;
+  const occurredDate = new Date(occurredAt);
+
+  /*
+   * Olmayan para çekilemez. Hesap kırpmayı zaten yapıyor ama sessizce:
+   * kullanıcı 5.000 yazıp 800 çekilmiş görürdü ve nedenini anlamazdı.
+   * Burada açıkça reddedip mevcut tutarı söylüyoruz.
+   */
+  if (direction === "WITHDRAWAL") {
+    const balance = await freeCashAt(userId, occurredDate, currency);
+
+    if (balance !== null) {
+      const requested = await convert(
+        amount,
+        currency,
+        balance.baseCurrency
+      ).catch(() => null);
+
+      if (requested !== null && new Decimal(requested).greaterThan(balance.available)) {
+        return {
+          error:
+            balance.available.isZero()
+              ? "O tarihte yatırım hesabında çekilecek serbest nakit yoktu. Satışı girerken \u201cParayı hesabıma çektim\u201d kutusunu işaretlediysen para zaten cebine yazılmıştır."
+              : `O tarihte yatırım hesabında ${formatMoney(balance.available.toFixed(2), balance.baseCurrency)} serbest nakit vardı; daha fazlası çekilemez.`,
+        };
+      }
+    }
+  }
+
+  await prisma.investmentCashMovement.create({
+    data: {
+      userId,
+      direction,
+      amount,
+      currency,
+      occurredAt: occurredDate,
+      note,
+    },
+  });
+
+  revalidatePath("/investments");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports");
+  return { success: true };
+}
+
+export async function deleteCashMovement(id: string): Promise<ActionState> {
+  const userId = await requireUserId();
+  await prisma.investmentCashMovement.deleteMany({ where: { id, userId } });
+  revalidatePath("/investments");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports");
   return { success: true };
 }

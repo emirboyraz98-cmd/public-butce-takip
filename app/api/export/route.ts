@@ -118,6 +118,7 @@ export async function GET(request: Request) {
     referenceFxRates,
     salaryResults,
     investments,
+    investmentCashMovements,
   ] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
@@ -160,6 +161,10 @@ export async function GET(request: Request) {
     prisma.investmentTransaction.findMany({
       where: { userId },
       orderBy: { tradedAt: "asc" },
+    }),
+    prisma.investmentCashMovement.findMany({
+      where: { userId },
+      orderBy: { occurredAt: "asc" },
     }),
   ]);
 
@@ -311,6 +316,9 @@ export async function GET(request: Request) {
     referansKurlar: referenceFxRates,
     maasSonuclari: salaryResults,
     yatirimIslemleri: investments,
+    // Yatırım hesabı ile cep arasındaki transferler. Yedekte olmazsa geri
+    // yüklendiğinde serbest nakit ve geçmiş nakit akışı yanlış çıkar.
+    yatirimNakitHareketleri: investmentCashMovements,
   };
 
   return download(

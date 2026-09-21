@@ -136,6 +136,7 @@ model User {
   expenseCategories   ExpenseCategory[]
   expenses            Expense[]
   investmentTx        InvestmentTransaction[]
+  investmentCash      InvestmentCashMovement[]
   loans               Loan[]
   cardPayments        CreditCardStatementPayment[]
   dayExceptions       SalaryDayException[]
@@ -482,6 +483,41 @@ model InvestmentTransaction {
 
   @@index([userId, symbol, assetType])
   @@index([userId, tradedAt])
+}
+
+enum CashMovementDirection {
+  /** Cepten yatırım hesabına: serbest nakit artar. */
+  DEPOSIT
+  /** Yatırım hesabından cebe: serbest nakit azalır. */
+  WITHDRAWAL
+}
+
+/**
+ * Yatırım hesabı ile cep arasındaki, bir alım/satıma bağlı OLMAYAN para
+ * hareketi.
+ *
+ * Buna ihtiyaç var çünkü `proceedsWithdrawn` yalnızca satışın KENDİ anını
+ * anlatabiliyor: "sattım, parayı bıraktım" denip iki ay sonra o para
+ * çekildiğinde kaydedilecek yer yoktu. Satışa dönüp işareti değiştirmek de
+ * yanlış olurdu — para, çekildiği ayda değil satış ayında cebe girmiş
+ * görünürdü ve kısmi çekim yazılamazdı.
+ *
+ * Tutar, işlemler gibi kendi para biriminde saklanır ve okunurken baz para
+ * birimine çevrilir; serbest nakit zaten baz para biriminde toplanıyor.
+ */
+model InvestmentCashMovement {
+  id         String                @id @default(cuid())
+  userId     String
+  user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  direction  CashMovementDirection
+  amount     Decimal               @db.Decimal(20, 8)
+  currency   BaseCurrency
+  occurredAt DateTime              @db.Date
+  note       String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([userId, occurredAt])
 }
 
 /**

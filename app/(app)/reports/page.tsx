@@ -55,6 +55,7 @@ export default async function ReportsPage({
     loans,
     salaryResults,
     investments,
+    investmentCashMovements,
     cardPayments,
   ] = await Promise.all([
       prisma.user.findUniqueOrThrow({
@@ -72,6 +73,7 @@ export default async function ReportsPage({
       }),
       prisma.monthlySalaryResult.findMany({ where: { userId } }),
       prisma.investmentTransaction.findMany({ where: { userId } }),
+      prisma.investmentCashMovement.findMany({ where: { userId } }),
       prisma.creditCardStatementPayment.findMany({ where: { userId } }),
     ]);
 
@@ -121,6 +123,14 @@ export default async function ReportsPage({
       month: p.month,
       amount: p.amount.toString(),
       currency: p.currency,
+    })),
+    // Yatırım hesabından cebe çekilen para da nakit girişi; kaydedilmezse
+    // Genel Bakış ile rapor birbirini tutmaz.
+    investmentCashMovements: investmentCashMovements.map((m) => ({
+      direction: m.direction,
+      amount: new Decimal(m.amount.toString()),
+      currency: m.currency,
+      occurredAt: m.occurredAt,
     })),
     // Genel Bakış ile aynı taban: yatırım da nakit hareketi.
     investments: investments.map((t) => ({

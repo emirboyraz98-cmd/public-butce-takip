@@ -99,6 +99,7 @@ export default async function DashboardPage({
 
   const [
     transactions,
+    investmentCashMovements,
     incomeEntries,
     expenses,
     loans,
@@ -108,6 +109,7 @@ export default async function DashboardPage({
   ] =
     await Promise.all([
       prisma.investmentTransaction.findMany({ where: { userId } }),
+      prisma.investmentCashMovement.findMany({ where: { userId } }),
       prisma.incomeEntry.findMany({ where: { userId }, include: { category: true } }),
       prisma.expense.findMany({ where: { userId }, include: { category: true } }),
       prisma.loan.findMany({
@@ -345,6 +347,14 @@ export default async function DashboardPage({
       // Çekilmeden bırakılan satış hasılatı nakit akışına girmez.
       proceedsWithdrawn: t.proceedsWithdrawn,
     })),
+    // Alım/satıma bağlı olmayan transferler: o parayı ne zaman cebe
+    // çektiğin buradan biliniyor.
+    cashMovements: investmentCashMovements.map((m) => ({
+      direction: m.direction,
+      amount: new Decimal(m.amount.toString()),
+      currency: m.currency,
+      occurredAt: m.occurredAt,
+    })),
     months,
     toBase: toBaseForMonth,
   });
@@ -486,6 +496,8 @@ export default async function DashboardPage({
       investmentGross: {
         bought: (investmentFlow?.bought ?? new Decimal(0)).toNumber(),
         sold: (investmentFlow?.sold ?? new Decimal(0)).toNumber(),
+        deposited: (investmentFlow?.deposited ?? new Decimal(0)).toNumber(),
+        withdrawn: (investmentFlow?.withdrawn ?? new Decimal(0)).toNumber(),
         realizedPL: (investmentFlow?.realizedPL ?? new Decimal(0)).toNumber(),
       },
       income: incomeBase.toNumber(),

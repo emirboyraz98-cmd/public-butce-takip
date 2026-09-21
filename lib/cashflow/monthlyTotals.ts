@@ -11,6 +11,7 @@ import {
 import { loanEntriesForMonth, type LoanInput } from "@/lib/loans/schedule";
 import {
   monthlyInvestmentFlows,
+  type InvestmentCashMovementLike,
   type InvestmentTransactionLike,
 } from "@/lib/investments/cashFlow";
 
@@ -66,6 +67,8 @@ export type MonthlyTotalsInput = {
    * eksi görüyordu.
    */
   investments?: InvestmentTransactionLike[];
+  /** Yatırım hesabı ile cep arasındaki, alım/satıma bağlı olmayan transferler. */
+  investmentCashMovements?: InvestmentCashMovementLike[];
   toBase: (amount: Decimal, currency: string, month: string) => Decimal;
 };
 
@@ -84,6 +87,7 @@ export function monthlyTotals(input: MonthlyTotalsInput): MonthlyTotals[] {
     salaryByAccrualMonth,
     salaryOffset,
     investments = [],
+    investmentCashMovements = [],
     cardPayments = [],
     toBase,
   } = input;
@@ -143,6 +147,7 @@ export function monthlyTotals(input: MonthlyTotalsInput): MonthlyTotals[] {
 
   const investmentFlows = monthlyInvestmentFlows({
     transactions: investments,
+    cashMovements: investmentCashMovements,
     months: [...months],
     toBase,
   });

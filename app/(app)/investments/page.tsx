@@ -13,6 +13,8 @@ import {
 } from "@/lib/investments/monthlySeries";
 import { convert } from "@/lib/fx/convert";
 import {
+  formatDate,
+  formatMoney,
   formatMoneyWhole,
   formatPercent,
   formatSignedWhole,
@@ -28,12 +30,16 @@ import { TransactionLog, type TransactionRow } from "./transaction-log";
 import { HoldingsTable, type HoldingRow } from "./holdings-table";
 import { RefreshButton } from "./refresh-button";
 import { ManualPriceForm } from "./manual-price-form";
+import {
+  CashMovementPanel,
+  type CashMovementRow,
+} from "./cash-movement-panel";
 
 export default async function InvestmentsPage() {
   const session = await auth();
   const userId = session!.user.id;
 
-  const [user, transactions] = await Promise.all([
+  const [user, transactions, cashMovements] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { baseCurrency: true },
@@ -41,6 +47,10 @@ export default async function InvestmentsPage() {
     prisma.investmentTransaction.findMany({
       where: { userId },
       orderBy: [{ tradedAt: "desc" }, { createdAt: "desc" }],
+    }),
+    prisma.investmentCashMovement.findMany({
+      where: { userId },
+      orderBy: [{ occurredAt: "desc" }, { createdAt: "desc" }],
     }),
   ]);
   const baseCurrency = user.baseCurrency;
@@ -270,6 +280,22 @@ export default async function InvestmentsPage() {
     toBase: (amount, currency) => toBase(amount, currency),
   });
 
+  const movementInput = cashMovements.map((m) => ({
+    direction: m.direction,
+    amount: new Decimal(m.amount.toString()),
+    currency: m.currency,
+    occurredAt: m.occurredAt,
+  }));
+
+  const movementRows: CashMovementRow[] = cashMovements.map((m) => ({
+    id: m.id,
+    direction: m.direction,
+    amountLabel: formatMoney(m.amount.toString(), m.currency),
+    occurredAt: format(m.occurredAt, "yyyy-MM-dd"),
+    occurredAtLabel: formatDate(format(m.occurredAt, "yyyy-MM-dd")),
+    note: m.note,
+  }));
+
   /*
    * Serbest nakit: çekilmeden bırakılan satış hasılatı. Portföy değerine
    * dahil DEĞİL (bir varlık değil, bekleyen para) ama kullanıcının yatırım
@@ -288,6 +314,7 @@ export default async function InvestmentsPage() {
       isOpening: t.isOpening,
       proceedsWithdrawn: t.proceedsWithdrawn,
     })),
+    cashMovements: movementInput,
     toBase: (amount, currency) => toBase(amount, currency),
   });
 
@@ -424,6 +451,12 @@ export default async function InvestmentsPage() {
                   Portföy değerine de dahil değildir: bir varlık değil,
                   bekleyen paradır.
                 </p>
+                <p>
+                  Bu parayı sonradan hesabına çektiysen aşağıdaki{" "}
+                  <strong>Hesap ile cep arasındaki para</strong> bölümüne
+                  yaz; serbest nakit düşer ve para çektiğin ayın nakit
+                  akışına girer.
+                </p>
               </CalcInfo>
             }
           />
@@ -515,6 +548,43 @@ export default async function InvestmentsPage() {
               <TransactionForm />
               <TransactionLog transactions={logRows} />
             </div>
+          </Section>
+
+          <Section
+            title="Hesap ile cep arasındaki para"
+            summary="Bir alım/satıma bağlı olmayan transferler: çektiğin ya da yatırdığın para."
+            helpTitle="Bu neden ayrı bir kayıt"
+            help={
+              <>
+                <p>
+                  Serbest nakit elle düzenlenmiyor, çünkü türetilmiş bir
+                  sayı: kendisini değiştirmek yerine onu değiştiren OLAYI
+                  yazıyorsun. Böylece para nereye gittiğini kaybetmiyor.
+                </p>
+                <p>
+                  Sattığın bir hissenin parasını aylar sonra hesabına
+                  çektiysen buraya yaz. Serbest nakit düşer ve para,
+                  satışın yapıldığı ayda değil <strong>çektiğin ayda</strong>{" "}
+                  Genel Bakış&apos;ta görünür.
+                </p>
+                <p>
+                  Ters yön de var: yatırım hesabına para yatırıp henüz
+                  almadıysan &quot;Hesaba para yatırdım&quot; de. Para o ay
+                  cepten çıkmış sayılır, sonraki alımların buradan
+                  karşılanır ve aynı para iki kez gider yazılmaz.
+                </p>
+                <p>
+                  Yanlış girdiğin kaydı silmen yeter; hesap kendini yeniden
+                  kurar.
+                </p>
+              </>
+            }
+          >
+            <CashMovementPanel
+              movements={movementRows}
+              today={todayKey}
+              freeCashLabel={money(freeCash)}
+            />
           </Section>
 
           {manualSymbols.length > 0 && (

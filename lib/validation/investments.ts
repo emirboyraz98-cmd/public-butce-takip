@@ -54,3 +54,19 @@ export const manualPriceSchema = z.object({
 });
 
 export type ManualPriceInput = z.infer<typeof manualPriceSchema>;
+
+/**
+ * Yatırım hesabı ile cep arasındaki transfer — bir alım/satıma bağlı değil.
+ *
+ * Tutar POZİTİF, yön ayrı bir alan: negatif tutarla yön anlatmak "-500
+ * çektim" gibi çift olumsuzlamalara ve işaret hatalarına açık olurdu.
+ */
+export const cashMovementSchema = z.object({
+  direction: z.enum(["DEPOSIT", "WITHDRAWAL"]),
+  amount: z.number().positive("Tutar 0'dan büyük olmalı"),
+  currency: z.enum(["TRY", "USD"]),
+  occurredAt: z.string().min(1, "Tarih gerekli"),
+  note: z.string().max(200).optional().nullable(),
+});
+
+export type CashMovementInput = z.infer<typeof cashMovementSchema>;
