@@ -6,12 +6,17 @@ import { prisma } from "@/lib/prisma";
 import { getOrRefreshPriceWithStatus } from "@/lib/investments/priceCache";
 import { computeHoldingPL } from "@/lib/investments/calculations";
 import { freeCashBalance } from "@/lib/investments/cashFlow";
-import { derivePositions, openPositions } from "@/lib/investments/positions";
+import {
+  derivePositions,
+  openPositions,
+  realizedSales,
+} from "@/lib/investments/positions";
 import {
   computeMonthlySeries,
   type PriceLookup,
 } from "@/lib/investments/monthlySeries";
 import { convert } from "@/lib/fx/convert";
+import { createDailyBaseConverter } from "@/lib/fx/dailyBase";
 import {
   formatDate,
   formatMoney,
@@ -200,9 +205,22 @@ export default async function InvestmentsPage() {
     (sum, r) => sum.plus(new Decimal(r.unrealizedPLBase as string)),
     new Decimal(0)
   );
-  // Gerçekleşen kâr/zarar da pozisyonun kendi para biriminden çevrilir.
-  const realizedTotalBase = allPositions.reduce(
-    (sum, p) => sum.plus(toBase(p.realizedPL, p.currency)),
+  /*
+   * Gerçekleşen kâr/zarar, satışın YAPILDIĞI günün kuruyla çevrilir ve bir
+   * daha oynamaz.
+   *
+   * Önce bugünkü kurla çevriliyordu; kapanmış bir işlemin kârı, hiçbir
+   * kayıt değişmese bile kur her kıpırdadığında değişiyordu. Dolarda 3.000
+   * kâr, kur 40'tan 40,43'e çıkınca kendiliğinden 1.300 TRY büyüyordu ve
+   * kullanıcı bunu az önce girdiği kaydın yaptığını sanıyordu.
+   *
+   * Açık pozisyonun kâr/zararı bugünkü kurla çevrilmeye devam ediyor: o
+   * zaten bugünkü değeri anlatıyor.
+   */
+  const toBaseOnDate = await createDailyBaseConverter({ baseCurrency });
+  const realizedTotalBase = realizedSales(allPositionsInput).reduce(
+    (sum, sale) =>
+      sum.plus(toBaseOnDate(sale.amount, sale.currency, sale.tradedAt)),
     new Decimal(0)
   );
   // Toplam sonuç: hem elde tutulanların kâğıt üstündeki kâr/zararı hem de
@@ -278,6 +296,7 @@ export default async function InvestmentsPage() {
     months: trendMonths,
     priceAt,
     toBase: (amount, currency) => toBase(amount, currency),
+    toBaseOnDate,
   });
 
   const movementInput = cashMovements.map((m) => ({

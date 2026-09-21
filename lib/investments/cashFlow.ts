@@ -1,6 +1,6 @@
 import Decimal from "decimal.js";
 
-import { derivePositions, type TransactionLike } from "./positions";
+import { realizedSales, type TransactionLike } from "./positions";
 
 /**
  * Yatırımın nakit akışındaki yeri.
@@ -265,11 +265,15 @@ export function monthlyInvestmentFlows({
 /**
  * Ay bazında gerçekleşen kâr/zarar.
  *
- * Ortalama maliyet birikimli olduğundan tek tek satışlara bakılamaz: her ay
- * sonuna kadarki toplam gerçekleşen kâr hesaplanır, aylık değer ardışık
- * farktan bulunur. Açılış pozisyonları maliyeti belirlediği için burada
- * DAHİL edilir — hariç tutulursa açılış pozisyonundan yapılan satış tamamen
- * kâr sayılırdı.
+ * Her satış, KENDİ ayına ve kendi ayının kuruyla yazılır.
+ *
+ * Eskiden her ay sonuna kadarki BİRİKİMLİ kâr o ayın kuruyla çevrilip
+ * ardışık farkı alınıyordu. Bunun yan etkisi vardı: hiç satış yapılmayan
+ * bir ayda bile, yalnızca kur oynadığı için birikimli toplamın karşılığı
+ * değişiyor ve o aya olmayan bir realize kâr/zarar düşüyordu.
+ *
+ * Açılış pozisyonları maliyeti belirlediği için hesaba DAHİL edilir —
+ * hariç tutulursa açılış pozisyonundan yapılan satış tamamen kâr sayılırdı.
  */
 function realizedByMonth(
   transactions: InvestmentTransactionLike[],
@@ -277,46 +281,18 @@ function realizedByMonth(
   toBase: ToBaseForMonth
 ): Map<string, Decimal> {
   const result = new Map<string, Decimal>();
-  if (months.length === 0) return result;
+  for (const month of months) result.set(month, new Decimal(0));
 
-  let previous = cumulativeRealized(
-    transactions,
-    previousMonthEnd(months[0]),
-    toBase
-  );
-
-  for (const month of months) {
-    const current = cumulativeRealized(transactions, monthEnd(month), toBase);
-    result.set(month, current.minus(previous));
-    previous = current;
+  for (const sale of realizedSales(transactions)) {
+    const month = monthOf(sale.tradedAt);
+    const row = result.get(month);
+    if (!row) continue;
+    result.set(month, row.plus(toBase(sale.amount, sale.currency, month)));
   }
 
   return result;
 }
 
-function cumulativeRealized(
-  transactions: InvestmentTransactionLike[],
-  until: Date,
-  toBase: ToBaseForMonth
-): Decimal {
-  const upTo = transactions.filter((t) => t.tradedAt <= until);
-  const month = monthOf(until);
-  return derivePositions(upTo).reduce(
-    (sum, position) =>
-      sum.plus(toBase(position.realizedPL, position.currency, month)),
-    new Decimal(0)
-  );
-}
-
-function monthEnd(month: string): Date {
-  const [year, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, m, 0, 23, 59, 59, 999));
-}
-
-function previousMonthEnd(month: string): Date {
-  const [year, m] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, m - 1, 0, 23, 59, 59, 999));
-}
 
 /**
  * Yatırım hesabında bekleyen serbest nakit — bugün itibarıyla.

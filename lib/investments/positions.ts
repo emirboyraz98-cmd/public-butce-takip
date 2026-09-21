@@ -31,6 +31,24 @@ export type Position = {
   transactionCount: number;
 };
 
+/**
+ * Tek bir satıştan doğan gerçekleşen kâr/zarar — İŞLEMİN KENDİ para
+ * biriminde ve kendi tarihiyle.
+ *
+ * Pozisyondaki `realizedPL` bütün satışları tek sayıda topluyor ve tarihi
+ * kaybediyor. Baz para birimine çevirirken tarih gerekli: geçmişte kapanmış
+ * bir işlemin kârını bugünkü kurla çevirmek, hiçbir işlem yapılmasa bile
+ * geçmiş kârın kur oynadıkça değişmesine yol açıyordu.
+ */
+export type RealizedSale = {
+  symbol: string;
+  assetType: string;
+  currency: string;
+  tradedAt: Date;
+  /** (satış fiyatı − o andaki ortalama maliyet) × satılan adet. */
+  amount: Decimal;
+};
+
 function positionKey(symbol: string, assetType: string, currency: string): string {
   return `${symbol}|${assetType}|${currency}`;
 }
@@ -50,6 +68,23 @@ function positionKey(symbol: string, assetType: string, currency: string): strin
  * açıyordu.
  */
 export function derivePositions(transactions: TransactionLike[]): Position[] {
+  return walkTransactions(transactions).positions;
+}
+
+/**
+ * Tüm satışları, her birinin kendi tarihi ve para birimiyle döndürür.
+ *
+ * Pozisyonlarla AYNI yürüyüşten çıkıyor: ortalama maliyet mantığı ikinci
+ * kez yazılsaydı iki hesap zamanla birbirinden sapardı.
+ */
+export function realizedSales(transactions: TransactionLike[]): RealizedSale[] {
+  return walkTransactions(transactions).sales;
+}
+
+function walkTransactions(transactions: TransactionLike[]): {
+  positions: Position[];
+  sales: RealizedSale[];
+} {
   const sorted = [...transactions].sort((a, b) => {
     const byTradedAt = a.tradedAt.getTime() - b.tradedAt.getTime();
     if (byTradedAt !== 0) return byTradedAt;
@@ -57,6 +92,7 @@ export function derivePositions(transactions: TransactionLike[]): Position[] {
   });
 
   const positions = new Map<string, Position>();
+  const sales: RealizedSale[] = [];
 
   for (const tx of sorted) {
     const key = positionKey(tx.symbol, tx.assetType, tx.currency);
@@ -87,9 +123,17 @@ export function derivePositions(transactions: TransactionLike[]): Position[] {
       // Elde olandan fazlası satılamaz; fazlası yok sayılır ki pozisyon
       // negatife düşüp sonraki hesapları bozmasın.
       const soldQty = Decimal.min(qty, current.quantity);
-      current.realizedPL = current.realizedPL.plus(
-        price.minus(current.avgCostBasis).mul(soldQty)
-      );
+      const gain = price.minus(current.avgCostBasis).mul(soldQty);
+      current.realizedPL = current.realizedPL.plus(gain);
+      if (!soldQty.isZero()) {
+        sales.push({
+          symbol: tx.symbol,
+          assetType: tx.assetType,
+          currency: tx.currency,
+          tradedAt: tx.tradedAt,
+          amount: gain,
+        });
+      }
       current.quantity = current.quantity.minus(soldQty);
       if (current.quantity.isZero()) current.avgCostBasis = new Decimal(0);
     }
@@ -98,7 +142,12 @@ export function derivePositions(transactions: TransactionLike[]): Position[] {
     positions.set(key, current);
   }
 
-  return [...positions.values()].sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return {
+    positions: [...positions.values()].sort((a, b) =>
+      a.symbol.localeCompare(b.symbol)
+    ),
+    sales,
+  };
 }
 
 /** Elde adet kalmayan (tamamen satılmış) pozisyonları ayıklar. */

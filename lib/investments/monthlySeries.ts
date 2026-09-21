@@ -1,6 +1,10 @@
 import Decimal from "decimal.js";
 
-import { derivePositions, type TransactionLike } from "./positions";
+import {
+  derivePositions,
+  realizedSales,
+  type TransactionLike,
+} from "./positions";
 
 export type MonthlyPoint = {
   month: string;
@@ -29,6 +33,17 @@ export type PriceLookup = (
 /** Tutarı baz para birimine çeviren fonksiyon. */
 export type ToBase = (amount: Decimal, currency: string) => Decimal;
 
+/**
+ * Gerçekleşen kâr/zarar için ayrı bir çevirici: tutar, satışın YAPILDIĞI
+ * günün kuruyla çevrilir. Piyasa değeri ve açık pozisyon K/Z'si ise bugünün
+ * kuruyla çevrilmeye devam eder — onlar zaten bugünkü değeri anlatıyor.
+ */
+export type ToBaseOnDate = (
+  amount: Decimal,
+  currency: string,
+  date: Date
+) => Decimal;
+
 function endOfMonthUtc(month: string): Date {
   const [year, m] = month.split("-").map(Number);
   // Bir sonraki ayın 0. günü = bu ayın son günü
@@ -46,11 +61,14 @@ export function computeMonthlySeries({
   months,
   priceAt,
   toBase,
+  toBaseOnDate,
 }: {
   transactions: TransactionLike[];
   months: string[];
   priceAt: PriceLookup;
   toBase: ToBase;
+  /** Verilmezse gerçekleşen K/Z de bugünkü kurla çevrilir (eski davranış). */
+  toBaseOnDate?: ToBaseOnDate;
 }): MonthlyPoint[] {
   return months.map((month) => {
     const monthEnd = endOfMonthUtc(month);
@@ -60,13 +78,27 @@ export function computeMonthlySeries({
     const positions = derivePositions(upToMonth);
 
     let costBasis = new Decimal(0);
-    let realizedPL = new Decimal(0);
+    /*
+     * Birikimli gerçekleşen K/Z. Satış satış toplanıyor ve her satış KENDİ
+     * günündeki kurla çevriliyor; pozisyonun toplamını bugünkü kurla
+     * çevirmek, hiç işlem yapılmayan aylarda bile çizgiyi kur oynadıkça
+     * oynatıyordu.
+     */
+    let realizedPL = toBaseOnDate
+      ? realizedSales(upToMonth).reduce(
+          (sum, sale) =>
+            sum.plus(toBaseOnDate(sale.amount, sale.currency, sale.tradedAt)),
+          new Decimal(0)
+        )
+      : new Decimal(0);
     let marketValue = new Decimal(0);
     let allPricesKnown = true;
     let hasOpenPosition = false;
 
     for (const p of positions) {
-      realizedPL = realizedPL.plus(toBase(p.realizedPL, p.currency));
+      if (!toBaseOnDate) {
+        realizedPL = realizedPL.plus(toBase(p.realizedPL, p.currency));
+      }
 
       if (p.quantity.lessThanOrEqualTo(0)) continue;
       hasOpenPosition = true;
