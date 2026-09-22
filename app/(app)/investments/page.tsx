@@ -5,7 +5,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrRefreshPriceWithStatus } from "@/lib/investments/priceCache";
 import { computeHoldingPL } from "@/lib/investments/calculations";
-import { freeCashBalance } from "@/lib/investments/cashFlow";
+import { freeCashBalance, freeCashLedger } from "@/lib/investments/cashFlow";
 import {
   derivePositions,
   openPositions,
@@ -39,6 +39,7 @@ import {
   CashMovementPanel,
   type CashMovementRow,
 } from "./cash-movement-panel";
+import { FreeCashLedger, type LedgerRow } from "./free-cash-ledger";
 
 export default async function InvestmentsPage() {
   const session = await auth();
@@ -301,6 +302,7 @@ export default async function InvestmentsPage() {
 
   const movementInput = cashMovements.map((m) => ({
     direction: m.direction,
+    kind: m.kind,
     amount: new Decimal(m.amount.toString()),
     currency: m.currency,
     occurredAt: m.occurredAt,
@@ -309,6 +311,7 @@ export default async function InvestmentsPage() {
   const movementRows: CashMovementRow[] = cashMovements.map((m) => ({
     id: m.id,
     direction: m.direction,
+    kind: m.kind,
     amountLabel: formatMoney(m.amount.toString(), m.currency),
     occurredAt: format(m.occurredAt, "yyyy-MM-dd"),
     occurredAtLabel: formatDate(format(m.occurredAt, "yyyy-MM-dd")),
@@ -320,19 +323,21 @@ export default async function InvestmentsPage() {
    * dahil DEĞİL (bir varlık değil, bekleyen para) ama kullanıcının yatırım
    * hesabındaki toplam varlığı bu ikisinin toplamı.
    */
+  const cashFlowInput = transactions.map((t) => ({
+    symbol: t.symbol,
+    assetType: t.assetType,
+    side: t.side,
+    quantity: new Decimal(t.quantity.toString()),
+    pricePerUnit: new Decimal(t.pricePerUnit.toString()),
+    currency: t.currency,
+    tradedAt: t.tradedAt,
+    createdAt: t.createdAt,
+    isOpening: t.isOpening,
+    proceedsWithdrawn: t.proceedsWithdrawn,
+  }));
+
   const freeCash = freeCashBalance({
-    transactions: transactions.map((t) => ({
-      symbol: t.symbol,
-      assetType: t.assetType,
-      side: t.side,
-      quantity: new Decimal(t.quantity.toString()),
-      pricePerUnit: new Decimal(t.pricePerUnit.toString()),
-      currency: t.currency,
-      tradedAt: t.tradedAt,
-      createdAt: t.createdAt,
-      isOpening: t.isOpening,
-      proceedsWithdrawn: t.proceedsWithdrawn,
-    })),
+    transactions: cashFlowInput,
     cashMovements: movementInput,
     toBase: (amount, currency) => toBase(amount, currency),
   });
@@ -355,6 +360,37 @@ export default async function InvestmentsPage() {
     formatMoneyWhole(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
   const signed = (v: Decimal) =>
     formatSignedWhole(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
+
+  /*
+   * Döküm, serbest nakit kutusuyla AYNI olay akışından çıkıyor; ayrı
+   * hesaplansaydı tablodaki son bakiye ile kutudaki rakam zamanla
+   * birbirini tutmazdı.
+   */
+  const eventLabels: Record<string, string> = {
+    BUY: "Alım",
+    SELL_KEPT: "Satış (para bırakıldı)",
+    DEPOSIT: "Hesaba yatırdım",
+    WITHDRAWAL: "Hesabımdan çektim",
+    CORRECTION_UP: "Düzeltme (artırıldı)",
+    CORRECTION_DOWN: "Düzeltme (azaltıldı)",
+  };
+
+  const ledgerRows: LedgerRow[] = freeCashLedger({
+    transactions: cashFlowInput,
+    cashMovements: movementInput,
+    toBase: (amount, currency) => toBase(amount, currency),
+  }).map((r) => ({
+    dateLabel: formatDate(format(r.date, "yyyy-MM-dd")),
+    label:
+      eventLabels[r.kind] +
+      (r.symbol && (r.kind === "BUY" || r.kind === "SELL_KEPT")
+        ? ` · ${r.symbol}`
+        : ""),
+    deltaLabel: r.delta.isZero() ? "—" : signed(r.delta),
+    tone: r.delta.isZero() ? "flat" : r.delta.isNegative() ? "down" : "up",
+    balanceLabel: money(r.balance),
+    isCorrection: r.kind.startsWith("CORRECTION"),
+  }));
 
   /** Sağ sütunun içeriği var mı — yoksa yuva hiç ayrılmıyor. */
   const hasSidePanel = trend.length >= 2 || allocation.length > 0;
@@ -603,6 +639,41 @@ export default async function InvestmentsPage() {
               movements={movementRows}
               today={todayKey}
               freeCashLabel={money(freeCash)}
+            />
+          </Section>
+
+          <Section
+            title="Serbest nakit dökümü"
+            summary="Bugünkü rakama hangi olaylarla gelindiği, satır satır."
+            helpTitle="Rakam tutmuyorsa"
+            help={
+              <>
+                <p>
+                  Bakiye sütunu her olaydan sonraki serbest nakdi gösterir.
+                  Brokerdeki tutarla nerede ayrıştığını bulmanın yolu bu:
+                  yukarıdan aşağı inerken tutmaya başladığı yerde eksik ya
+                  da yanlış bir kayıt vardır.
+                </p>
+                <p>
+                  Hasılatını doğrudan çektiğin satışlar burada yer almaz —
+                  o para serbest nakde hiç uğramadı, doğrudan cebine girdi.
+                  Onları <strong>İşlem defteri</strong>&apos;nde görürsün.
+                </p>
+                <p>
+                  Eksik kayıtları tek tek bulmak zorunda değilsin: alttaki
+                  kutuya brokerdeki gerçek tutarı yazman yeter, farkı
+                  düzeltme satırı olarak kaydederim. Düzeltme{" "}
+                  <strong>nakit akışına girmez</strong>; para cebine
+                  girmedi, yalnızca kayıt eksikti.
+                </p>
+              </>
+            }
+          >
+            <FreeCashLedger
+              rows={ledgerRows}
+              today={todayKey}
+              baseCurrency={baseCurrency}
+              currentLabel={money(freeCash)}
             />
           </Section>
 

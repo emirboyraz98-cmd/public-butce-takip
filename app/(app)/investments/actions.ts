@@ -7,6 +7,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import {
   cashMovementSchema,
+  cashReconcileSchema,
   manualPriceSchema,
   transactionSchema,
   transactionUpdateSchema,
@@ -301,6 +302,7 @@ async function freeCashAt(
     })),
     cashMovements: movements.map((m) => ({
       direction: m.direction,
+      kind: m.kind,
       amount: new Decimal(m.amount.toString()),
       currency: m.currency,
       occurredAt: m.occurredAt,
@@ -362,6 +364,9 @@ export async function createCashMovement(
   await prisma.investmentCashMovement.create({
     data: {
       userId,
+      // Bu form yalnızca GERÇEK para hareketi yazar; düzeltmeler
+      // mutabakattan geliyor (bkz. reconcileFreeCash).
+      kind: "TRANSFER",
       direction,
       amount,
       currency,
@@ -383,4 +388,89 @@ export async function deleteCashMovement(id: string): Promise<ActionState> {
   revalidatePath("/dashboard");
   revalidatePath("/reports");
   return { success: true };
+}
+
+/**
+ * Mutabakat: brokerdeki gerçek serbest nakde göre tek bir düzeltme yazar.
+ *
+ * Eksik girilmiş alım/satımlar yüzünden serbest nakit gerçekte olandan
+ * sapabiliyor ve kullanıcı geçmişe dönük neyi girmediğini bulamıyor.
+ * Kayıtları tek tek avlamak yerine gerçek tutar giriliyor, fark tarihli bir
+ * düzeltme satırı olarak dökümde duruyor.
+ *
+ * Düzeltmede çekim doğrulaması YAPILMIYOR: mevcut kayıt zaten yanlış
+ * olduğu için ona karşı doğrulamak döngüsel olurdu.
+ */
+export async function reconcileFreeCash(
+  _prevState: ActionState,
+  formData: FormData
+): Promise<ActionState> {
+  const userId = await requireUserId();
+
+  const parsed = cashReconcileSchema.safeParse({
+    actualAmount: Number(formData.get("actualAmount")),
+    currency: formData.get("currency"),
+    occurredAt: formData.get("occurredAt"),
+    note: (formData.get("note") as string | null) || null,
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Geçersiz bilgi" };
+  }
+
+  const { actualAmount, currency, occurredAt, note } = parsed.data;
+  const occurredDate = new Date(occurredAt);
+
+  const balance = await freeCashAt(userId, occurredDate, currency);
+  if (balance === null) {
+    return {
+      error:
+        "Kur bilgisine ulaşılamadığı için karşılaştırma yapılamadı. Biraz sonra tekrar dene.",
+    };
+  }
+
+  const actualInBase = await convert(
+    actualAmount,
+    currency,
+    balance.baseCurrency
+  ).catch(() => null);
+
+  if (actualInBase === null) {
+    return { error: "Kur bilgisine ulaşılamadı. Biraz sonra tekrar dene." };
+  }
+
+  const difference = new Decimal(actualInBase).minus(balance.available);
+
+  if (difference.isZero()) {
+    return {
+      info: `Kayıt zaten tutuyor: ${formatMoney(balance.available.toFixed(2), balance.baseCurrency)}. Düzeltme yazılmadı.`,
+    };
+  }
+
+  /*
+   * Fark BAZ para biriminde hesaplandı; kayıt da baz para biriminde
+   * yazılıyor. Kullanıcının girdiği para biriminde yazmak, iki kez kur
+   * çevirmek demek olurdu ve düzeltme tam oturmazdı.
+   */
+  await prisma.investmentCashMovement.create({
+    data: {
+      userId,
+      kind: "CORRECTION",
+      direction: difference.isPositive() ? "DEPOSIT" : "WITHDRAWAL",
+      amount: difference.abs().toFixed(2),
+      currency: balance.baseCurrency,
+      occurredAt: occurredDate,
+      note: note ?? "Mutabakat düzeltmesi",
+    },
+  });
+
+  revalidatePath("/investments");
+  revalidatePath("/dashboard");
+  revalidatePath("/reports");
+
+  const yon = difference.isPositive() ? "eklendi" : "düşüldü";
+  return {
+    success: true,
+    info: `${formatMoney(difference.abs().toFixed(2), balance.baseCurrency)} ${yon}; serbest nakit artık ${formatMoney(new Decimal(actualInBase).toFixed(2), balance.baseCurrency)}.`,
+  };
 }

@@ -485,6 +485,17 @@ model InvestmentTransaction {
   @@index([userId, tradedAt])
 }
 
+enum CashMovementKind {
+  /** Para gerçekten cep ile yatırım hesabı arasında gitti geldi. */
+  TRANSFER
+  /**
+   * Kayıt düzeltmesi. Para HİÇBİR YERE gitmedi; kaydın kendisi eksikti ve
+   * serbest nakit gerçekten olandan sapmıştı. Nakit akışına girmez —
+   * girseydi, hiç yaşanmamış bir gelir ya da gider uydurulmuş olurdu.
+   */
+  CORRECTION
+}
+
 enum CashMovementDirection {
   /** Cepten yatırım hesabına: serbest nakit artar. */
   DEPOSIT
@@ -510,6 +521,12 @@ model InvestmentCashMovement {
   userId     String
   user       User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   direction  CashMovementDirection
+  /**
+   * Gerçek transfer mi, yoksa kayıt düzeltmesi mi. `direction` her iki
+   * durumda da serbest nakdin hangi yöne oynadığını söyler; bu alan ise
+   * paranın gerçekten cebe girip girmediğini.
+   */
+  kind       CashMovementKind      @default(TRANSFER)
   amount     Decimal               @db.Decimal(20, 8)
   currency   BaseCurrency
   occurredAt DateTime              @db.Date

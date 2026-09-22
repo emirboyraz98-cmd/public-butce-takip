@@ -51,6 +51,12 @@ export type InvestmentTransactionLike = TransactionLike & {
  */
 export type InvestmentCashMovementLike = {
   direction: "DEPOSIT" | "WITHDRAWAL";
+  /**
+   * Gerçek transfer mi, kayıt düzeltmesi mi. Belirtilmezse TRANSFER —
+   * eski davranış. Düzeltme serbest nakdi oynatır ama nakit akışına
+   * girmez: para hiçbir yere gitmedi, yalnızca kayıt eksikti.
+   */
+  kind?: "TRANSFER" | "CORRECTION";
   amount: Decimal;
   currency: string;
   occurredAt: Date;
@@ -98,21 +104,24 @@ export type ToBaseForMonth = (
   month: string
 ) => Decimal;
 
-/**
- * Her ay için yatırımın nakit etkisini hesaplar.
- *
- * Gerçekleşen kâr/zarar ortalama maliyet yöntemiyle bulunur; bunun için o
- * aya kadarki TÜM işlemler gerekir (açılış pozisyonları dahil, çünkü
- * maliyeti onlar belirler). Nakit tarafında ise açılış pozisyonları hariç
- * tutulur.
- */
 /** Serbest nakdi hareket ettiren tek bir olay. */
+type CashEventKind =
+  | "BUY"
+  | "SELL_WITHDRAWN"
+  | "SELL_KEPT"
+  | "DEPOSIT"
+  | "WITHDRAWAL"
+  | "CORRECTION_UP"
+  | "CORRECTION_DOWN";
+
 type CashEvent = {
   at: Date;
-  kind: "BUY" | "SELL_WITHDRAWN" | "SELL_KEPT" | "DEPOSIT" | "WITHDRAWAL";
+  kind: CashEventKind;
   /** İşlemin/hareketin kendi para biriminde tutar. */
   amount: Decimal;
   currency: string;
+  /** Alım/satımda sembol; dökümde satırı tanınır kılıyor. */
+  symbol?: string;
 };
 
 /**
@@ -145,20 +154,28 @@ function orderedCashEvents(
             : "SELL_WITHDRAWN",
       amount: new Decimal(tx.quantity).mul(tx.pricePerUnit),
       currency: tx.currency,
+      symbol: tx.symbol,
     });
   }
 
   for (const mv of cashMovements) {
+    const correction = mv.kind === "CORRECTION";
     events.push({
       at: mv.occurredAt,
-      kind: mv.direction,
+      kind: correction
+        ? mv.direction === "DEPOSIT"
+          ? "CORRECTION_UP"
+          : "CORRECTION_DOWN"
+        : mv.direction,
       amount: new Decimal(mv.amount),
       currency: mv.currency,
     });
   }
 
-  const inflowFirst = (kind: CashEvent["kind"]) =>
-    kind === "BUY" || kind === "WITHDRAWAL" ? 1 : 0;
+  const inflowFirst = (kind: CashEventKind) =>
+    kind === "BUY" || kind === "WITHDRAWAL" || kind === "CORRECTION_DOWN"
+      ? 1
+      : 0;
 
   return events.sort(
     (a, b) =>
@@ -166,6 +183,14 @@ function orderedCashEvents(
   );
 }
 
+/**
+ * Her ay için yatırımın nakit etkisini hesaplar.
+ *
+ * Gerçekleşen kâr/zarar ortalama maliyet yöntemiyle bulunur; bunun için o
+ * aya kadarki TÜM işlemler gerekir (açılış pozisyonları dahil, çünkü
+ * maliyeti onlar belirler). Nakit tarafında ise açılış pozisyonları hariç
+ * tutulur.
+ */
 export function monthlyInvestmentFlows({
   transactions,
   cashMovements = [],
@@ -244,6 +269,18 @@ export function monthlyInvestmentFlows({
         if (row) row.withdrawn = row.withdrawn.plus(taken);
         break;
       }
+      /*
+       * Düzeltmeler serbest nakdi oynatır ama hiçbir aylık alana
+       * yazılmaz. Para cep ile hesap arasında gerçekten gitmedi; kayıt
+       * eksikti. Nakit akışına yazılsaydı hiç yaşanmamış bir gelir ya da
+       * gider uydurulmuş olurdu.
+       */
+      case "CORRECTION_UP":
+        freeCash = freeCash.plus(amount);
+        break;
+      case "CORRECTION_DOWN":
+        freeCash = Decimal.max(freeCash.minus(amount), 0);
+        break;
     }
   }
 
@@ -331,16 +368,97 @@ export function freeCashBalance({
     switch (event.kind) {
       case "BUY":
       case "WITHDRAWAL":
+      case "CORRECTION_DOWN":
         freeCash = Decimal.max(freeCash.minus(amount), 0);
         break;
       case "SELL_KEPT":
       case "DEPOSIT":
+      case "CORRECTION_UP":
         freeCash = freeCash.plus(amount);
         break;
+      // Çekilen satışın hasılatı doğrudan cebe gitti, serbest nakde uğramadı.
       case "SELL_WITHDRAWN":
         break;
     }
   }
 
   return freeCash;
+}
+
+/** Serbest nakit dökümündeki tek bir satır. */
+export type FreeCashLedgerRow = {
+  date: Date;
+  kind: CashEventKind;
+  /** Alım/satım satırlarında sembol. */
+  symbol?: string;
+  /** Baz para biriminde, İŞARETLİ değişim (çıkışlar negatif). */
+  delta: Decimal;
+  /** Bu olaydan SONRAKİ serbest nakit bakiyesi. */
+  balance: Decimal;
+};
+
+/**
+ * Serbest nakdin bugünkü değerine nasıl geldiğinin dökümü.
+ *
+ * Serbest nakit tek bir rakam olarak duruyordu ve arkasında hiçbir iz
+ * yoktu: kullanıcı hangi satışın eklediğini, hangi alımın düşürdüğünü
+ * göremediği için rakam brokerdeki gerçekle tutmadığında nerede saptığını
+ * bulamıyordu. Bakiye her olaydan sonra yazılırsa sapmanın başladığı satır
+ * gözle görülür.
+ *
+ * `freeCashBalance` ile AYNI olay akışından çıkıyor; iki hesap ayrı
+ * yazılsaydı döküm ile kutudaki rakam zamanla birbirini tutmazdı. Son
+ * satırın bakiyesi her zaman `freeCashBalance` sonucuna eşittir.
+ *
+ * Serbest nakde dokunmayan olaylar (hasılatı doğrudan çekilen satış)
+ * listeye girmez: bu döküm "serbest nakdi ne oynattı" sorusunun cevabı,
+ * işlem defterinin ikinci bir kopyası değil.
+ */
+export function freeCashLedger({
+  transactions,
+  cashMovements = [],
+  toBase,
+}: {
+  transactions: InvestmentTransactionLike[];
+  cashMovements?: InvestmentCashMovementLike[];
+  toBase: ToBaseForMonth;
+}): FreeCashLedgerRow[] {
+  const rows: FreeCashLedgerRow[] = [];
+  let freeCash = new Decimal(0);
+
+  for (const event of orderedCashEvents(transactions, cashMovements)) {
+    if (event.kind === "SELL_WITHDRAWN") continue;
+
+    const amount = toBase(event.amount, event.currency, monthOf(event.at));
+    const before = freeCash;
+
+    switch (event.kind) {
+      case "BUY":
+      case "WITHDRAWAL":
+      case "CORRECTION_DOWN":
+        freeCash = Decimal.max(freeCash.minus(amount), 0);
+        break;
+      case "SELL_KEPT":
+      case "DEPOSIT":
+      case "CORRECTION_UP":
+        freeCash = freeCash.plus(amount);
+        break;
+    }
+
+    /*
+     * Gerçekleşen değişim yazılıyor, istenen değil. Serbest nakitten
+     * fazlasına yapılan alımda aradaki fark cepten çıkar ve serbest nakdi
+     * sıfırın altına indirmez; satırda ham tutar yazsaydı bakiye sütunu
+     * kendi içinde tutarsız görünürdü.
+     */
+    rows.push({
+      date: event.at,
+      kind: event.kind,
+      symbol: event.symbol,
+      delta: freeCash.minus(before),
+      balance: freeCash,
+    });
+  }
+
+  return rows;
 }

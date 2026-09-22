@@ -70,3 +70,19 @@ export const cashMovementSchema = z.object({
 });
 
 export type CashMovementInput = z.infer<typeof cashMovementSchema>;
+
+/**
+ * Mutabakat: brokerde GERÇEKTE duran serbest nakit.
+ *
+ * Kullanıcı farkı değil, gerçek tutarı giriyor. Fark istemek, hesap
+ * makinesi işini kullanıcıya yıkmak ve işaret hatasına davetiye olurdu
+ * ("eksik olan 3.000'i mi yazacağım, eksi 3.000 mü?").
+ */
+export const cashReconcileSchema = z.object({
+  actualAmount: z.number().nonnegative("Tutar negatif olamaz"),
+  currency: z.enum(["TRY", "USD"]),
+  occurredAt: z.string().min(1, "Tarih gerekli"),
+  note: z.string().max(200).optional().nullable(),
+});
+
+export type CashReconcileInput = z.infer<typeof cashReconcileSchema>;

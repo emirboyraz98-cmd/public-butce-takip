@@ -20,6 +20,12 @@ import { createCashMovement, deleteCashMovement } from "./actions";
 export type CashMovementRow = {
   id: string;
   direction: "DEPOSIT" | "WITHDRAWAL";
+  /**
+   * Gerçek transfer mi, mutabakat düzeltmesi mi. Düzeltmeler de bu listede
+   * duruyor — yanlış girilen bir düzeltme buradan silinebilmeli — ama
+   * "Hesaba yatırdım" diye yazılamazlar: öyle bir para hareketi olmadı.
+   */
+  kind: "TRANSFER" | "CORRECTION";
   /** Kendi para birimiyle birlikte yazılmış tutar. */
   amountLabel: string;
   /** yyyy-MM-dd */
@@ -223,10 +229,19 @@ export function CashMovementPanel({
             >
               <div className="min-w-0">
                 <p className="text-[13px] font-semibold">
-                  {m.direction === "WITHDRAWAL"
-                    ? "Hesabımdan çektim"
-                    : "Hesaba yatırdım"}{" "}
+                  {m.kind === "CORRECTION"
+                    ? m.direction === "WITHDRAWAL"
+                      ? "Düzeltme (azaltıldı)"
+                      : "Düzeltme (artırıldı)"
+                    : m.direction === "WITHDRAWAL"
+                      ? "Hesabımdan çektim"
+                      : "Hesaba yatırdım"}{" "}
                   <span className="tabular-nums">{m.amountLabel}</span>
+                  {m.kind === "CORRECTION" && (
+                    <span className="text-muted-foreground ml-1.5 font-normal text-[11px]">
+                      nakit akışına girmez
+                    </span>
+                  )}
                 </p>
                 <p className="text-muted-foreground text-[12px]">
                   {m.occurredAtLabel}

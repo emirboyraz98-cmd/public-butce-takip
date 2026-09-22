@@ -128,6 +128,7 @@ export default async function ReportsPage({
     // Genel Bakış ile rapor birbirini tutmaz.
     investmentCashMovements: investmentCashMovements.map((m) => ({
       direction: m.direction,
+      kind: m.kind,
       amount: new Decimal(m.amount.toString()),
       currency: m.currency,
       occurredAt: m.occurredAt,

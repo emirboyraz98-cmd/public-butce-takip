@@ -351,6 +351,7 @@ export default async function DashboardPage({
     // çektiğin buradan biliniyor.
     cashMovements: investmentCashMovements.map((m) => ({
       direction: m.direction,
+      kind: m.kind,
       amount: new Decimal(m.amount.toString()),
       currency: m.currency,
       occurredAt: m.occurredAt,

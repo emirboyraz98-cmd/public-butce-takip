@@ -1,7 +1,11 @@
 import Decimal from "decimal.js";
 import { describe, expect, it } from "vitest";
 
-import { freeCashBalance, monthlyInvestmentFlows } from "./cashFlow";
+import {
+  freeCashBalance,
+  freeCashLedger,
+  monthlyInvestmentFlows,
+} from "./cashFlow";
 
 const identity = (amount: Decimal) => amount;
 
@@ -295,5 +299,109 @@ describe("freeCashBalance — geçmişe dönük bakiye", () => {
       until: new Date("2026-01-10T00:00:00Z"),
     });
     expect(balance.toString()).toBe("1000");
+  });
+});
+
+describe("freeCashLedger", () => {
+  const trades = [
+    tx("2026-05-04", "BUY", 100, 250),
+    tx("2026-07-15", "SELL", 100, 310, { proceedsWithdrawn: false }),
+    tx("2026-08-03", "BUY", 50, 80),
+  ];
+
+  it("son satırın bakiyesi serbest nakitle birebir aynıdır", () => {
+    const args = { transactions: trades, cashMovements: [mv("2026-08-20", "WITHDRAWAL", 10000)], toBase: identity };
+    const rows = freeCashLedger(args);
+    expect(rows.at(-1)!.balance.toString()).toBe(
+      freeCashBalance(args).toString()
+    );
+  });
+
+  it("her olayı sırayla, işaretli değişim ve bakiyeyle verir", () => {
+    const rows = freeCashLedger({ transactions: trades, toBase: identity });
+    expect(
+      rows.map((r) => [r.kind, r.delta.toString(), r.balance.toString()])
+    ).toEqual([
+      // Serbest nakit yokken yapılan alım bakiyeyi oynatmaz: para cepten çıktı.
+      ["BUY", "0", "0"],
+      ["SELL_KEPT", "31000", "31000"],
+      ["BUY", "-4000", "27000"],
+    ]);
+  });
+
+  it("hasılatı doğrudan çekilen satışı listeye almaz", () => {
+    const rows = freeCashLedger({
+      transactions: [tx("2026-01-10", "SELL", 10, 100)],
+      toBase: identity,
+    });
+    expect(rows).toHaveLength(0);
+  });
+
+  it("alım/satım satırlarında sembolü taşır", () => {
+    const rows = freeCashLedger({ transactions: trades, toBase: identity });
+    expect(rows.every((r) => r.symbol === "X")).toBe(true);
+  });
+});
+
+describe("düzeltme kaydı", () => {
+  const correction = (
+    date: string,
+    direction: "DEPOSIT" | "WITHDRAWAL",
+    amount: number
+  ) => ({ ...mv(date, direction, amount), kind: "CORRECTION" as const });
+
+  const sale = tx("2026-01-10", "SELL", 10, 100, { proceedsWithdrawn: false });
+
+  it("serbest nakdi oynatır", () => {
+    expect(
+      freeCashBalance({
+        transactions: [sale],
+        cashMovements: [correction("2026-03-01", "WITHDRAWAL", 400)],
+        toBase: identity,
+      }).toString()
+    ).toBe("600");
+  });
+
+  it("nakit akışına GİRMEZ — para hiçbir yere gitmedi", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [sale],
+      cashMovements: [correction("2026-03-01", "WITHDRAWAL", 400)],
+      months: ["2026-01", "2026-03"],
+      toBase: identity,
+    });
+    expect(r.get("2026-03")!.withdrawn.toString()).toBe("0");
+    expect(r.get("2026-03")!.netInvested.toString()).toBe("0");
+  });
+
+  it("gerçek çekimden ayrılır: transfer nakde girer, düzeltme girmez", () => {
+    const withTransfer = monthlyInvestmentFlows({
+      transactions: [sale],
+      cashMovements: [mv("2026-03-01", "WITHDRAWAL", 400)],
+      months: ["2026-03"],
+      toBase: identity,
+    });
+    expect(withTransfer.get("2026-03")!.withdrawn.toString()).toBe("400");
+  });
+
+  it("yukarı düzeltme de nakit akışına girmez", () => {
+    const r = monthlyInvestmentFlows({
+      transactions: [],
+      cashMovements: [correction("2026-03-01", "DEPOSIT", 5000)],
+      months: ["2026-03"],
+      toBase: identity,
+    });
+    expect(r.get("2026-03")!.deposited.toString()).toBe("0");
+    expect(r.get("2026-03")!.netInvested.toString()).toBe("0");
+  });
+
+  it("dökümde ayrı bir satır olarak görünür", () => {
+    const rows = freeCashLedger({
+      transactions: [sale],
+      cashMovements: [correction("2026-03-01", "WITHDRAWAL", 400)],
+      toBase: identity,
+    });
+    expect(rows.at(-1)!.kind).toBe("CORRECTION_DOWN");
+    expect(rows.at(-1)!.delta.toString()).toBe("-400");
+    expect(rows.at(-1)!.balance.toString()).toBe("600");
   });
 });
