@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   TableBody,
   TableCell,
@@ -137,6 +138,8 @@ export function RecordList({
   const [includeOngoing, setIncludeOngoing] = useState(false);
   /** Dar ekranda filtre bloğu katlı başlar. */
   const [filtersOpen, setFiltersOpen] = useState(false);
+  /** Not, kategori ve tutarda arama. */
+  const [query, setQuery] = useState("");
 
   const byKind = useMemo(
     () => (active ? rows.filter(active.match) : rows),
@@ -161,13 +164,32 @@ export function RecordList({
     );
   }, [byKind, range.from]);
 
-  const visible = useMemo(() => {
+  const withOngoing = useMemo(() => {
     if (!includeOngoing || ongoingBefore.length === 0) return inRange;
     // Tarihe göre azalan: liste zaten sunucudan bu sırada geliyor.
     return [...inRange, ...ongoingBefore].sort((a, b) =>
       b.date.localeCompare(a.date)
     );
   }, [inRange, ongoingBefore, includeOngoing]);
+
+  /*
+   * Arama not, kategori ve tutarda geçiyor. Kayıt biriktikçe "o konser
+   * harcaması neydi" sorusunun cevabı yoktu: listeyi gözle taramak ya da
+   * tarih aralığını daraltıp denemek gerekiyordu.
+   *
+   * Tutar ham metin üzerinde aranıyor ("2200" yazınca 2.200 TRY bulunur);
+   * biçimlendirilmiş hâlde aramak binlik ayracı yüzünden kullanıcının
+   * yazdığıyla uyuşmuyordu.
+   */
+  const visible = useMemo(() => {
+    const q = query.trim().toLocaleLowerCase("tr");
+    if (!q) return withOngoing;
+    return withOngoing.filter((r) =>
+      [r.note ?? "", r.categoryName, r.amount, r.date].some((alan) =>
+        alan.toLocaleLowerCase("tr").includes(q)
+      )
+    );
+  }, [withOngoing, query]);
 
   /** Katlıyken de ne süzüldüğünü söyleyen kısa etiket. */
   const rangeLabel =
@@ -242,8 +264,27 @@ export function RecordList({
         <p className="text-muted-foreground text-[13px]">
           <strong className="text-foreground">{visible.length}</strong> kayıt
           {visible.length !== rows.length && ` (toplam ${rows.length})`}
+          {query.trim() !== "" && ` · "${query.trim()}" aramasıyla`}
         </p>
         <div className="flex flex-wrap items-center gap-2">
+          {/*
+            Arama kutusu filtrelerin içinde değil, listenin hemen üstünde:
+            aranan şey çoğu zaman tek bir kayıt ve onu bulmak için önce
+            filtre panelini açmak gerekmemeli.
+          */}
+          <div className="relative">
+            <label className="sr-only" htmlFor="record-search">
+              Kayıtlarda ara
+            </label>
+            <Input
+              id="record-search"
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Ara: not, kategori, tutar"
+              className="h-9 w-full sm:w-56"
+            />
+          </div>
           {extraActions}
           <Button asChild variant="outline" size="sm">
             <a href={csvUrl} download>

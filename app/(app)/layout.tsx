@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { PageTour } from "@/components/tour/PageTour";
+import { QuickAdd } from "@/components/money/quick-add";
 
 export default async function AppLayout({
   children,
@@ -17,15 +18,27 @@ export default async function AppLayout({
     redirect("/login");
   }
 
-  const user = await prisma.user.findUniqueOrThrow({
-    where: { id: session.user.id },
-    select: {
-      baseCurrency: true,
-      completedTours: true,
-      status: true,
-      role: true,
-    },
-  });
+  const [user, expenseCategories] = await Promise.all([
+    prisma.user.findUniqueOrThrow({
+      where: { id: session.user.id },
+      select: {
+        baseCurrency: true,
+        completedTours: true,
+        status: true,
+        role: true,
+      },
+    }),
+    /*
+     * Hızlı ekleme her sayfada açılabildiği için kategoriler kabukta
+     * okunuyor. Arşivlenmişler dışarıda: yeni kayıtta seçilemezler ama
+     * eski kayıtların etiketi olarak durmaya devam ederler.
+     */
+    prisma.expenseCategory.findMany({
+      where: { userId: session.user.id, archived: false },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
 
   // Oturum, giriş anındaki duruma göre verildi. Aradan geçen sürede üyelik
   // devre dışı bırakılmış olabilir; token süresi dolana kadar erişimin
@@ -40,6 +53,7 @@ export default async function AppLayout({
     // Kenar çubuğu sabit 236px, içerik akışkan.
     <div className="flex min-h-svh">
       <Sidebar baseCurrency={user.baseCurrency} />
+      <QuickAdd categories={expenseCategories} />
       {/* Alt kenar boşluğu telefondaki sabit sekme çubuğu içindir; onsuz
           sayfanın son satırı çubuğun altında kalıyor. */}
       <main className="min-w-0 flex-1 px-4 py-5 pb-24 sm:px-6 lg:px-8 lg:py-7 lg:pb-8">
