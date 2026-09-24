@@ -23,6 +23,9 @@ function parseExpenseForm(formData: FormData) {
     note: formData.get("note") || undefined,
     date: formData.get("date"),
     frequency: formData.get("frequency"),
+    // Boş dize "bitiş yok" demek; şema null bekliyor.
+    recurrenceEndMonth:
+      (formData.get("recurrenceEndMonth") as string | null) || null,
     kind: formData.get("kind") || undefined,
     paymentMonth: formData.get("paymentMonth") || undefined,
     installmentCount: formData.get("installmentCount")
@@ -109,6 +112,7 @@ export async function createExpense(
       note,
       date: new Date(`${date}T00:00:00Z`),
       frequency,
+      recurrenceEndMonth: parsed.data.recurrenceEndMonth ?? null,
       kind,
       paymentMonth: payment.value,
       installmentCount,
@@ -162,6 +166,7 @@ export async function updateExpense(
       note: note ?? null,
       date: new Date(`${date}T00:00:00Z`),
       frequency,
+      recurrenceEndMonth: parsed.data.recurrenceEndMonth ?? null,
       kind,
       paymentMonth: payment.value,
       installmentCount,

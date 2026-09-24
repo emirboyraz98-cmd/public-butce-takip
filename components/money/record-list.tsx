@@ -36,6 +36,8 @@ export type RecordRow = {
   amount: string;
   currency: string;
   frequency: "ONE_TIME" | "MONTHLY";
+  /** yyyy-MM ya da null. Tekrarlayan kaydın son ayı. */
+  recurrenceEndMonth: string | null;
   note: string | null;
   /** Baz para birimine çevrilmiş karşılığı; kur yoksa null. */
   baseAmount: string | null;
@@ -67,7 +69,11 @@ function KindBadge({ row }: { row: RecordRow }) {
         ? `Kart · ${row.installmentCount} taksit`
         : "Kart"
       : row.frequency === "MONTHLY"
-        ? "Otomatik · aylık"
+        ? // Bitmiş tekrar rozette görünmeli: aksi halde liste, artık
+          // ödenmeyen bir kaydı hâlâ aylık tekrar ediyormuş gibi gösterirdi.
+          row.recurrenceEndMonth
+          ? `Aylık · ${formatMonth(row.recurrenceEndMonth)}'a kadar`
+          : "Otomatik · aylık"
         : "Havale";
 
   return (
@@ -528,6 +534,7 @@ export function RecordList({
             currency: editing.currency as "TRY" | "USD",
             date: editing.date,
             frequency: editing.frequency,
+            recurrenceEndMonth: editing.recurrenceEndMonth ?? "",
             note: editing.note ?? "",
             paymentMonth: editing.paymentMonth ?? "",
             installmentCount: editing.installmentCount ?? 1,

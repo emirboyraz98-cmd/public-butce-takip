@@ -13,6 +13,15 @@ export const incomeEntrySchema = z.object({
   note: z.string().optional(),
   date: z.string().min(1, "Tarih gerekli"),
   frequency: z.enum(["ONE_TIME", "MONTHLY"]),
+  /**
+   * Tekrarlayan kaydın son ayı (yyyy-MM), o ay DAHİL. Boş = hâlâ sürüyor.
+   * Tek seferlik kayıtlarda yok sayılır.
+   */
+  recurrenceEndMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Ay yyyy-AA biçiminde olmalı")
+    .optional()
+    .nullable(),
 });
 
 export type IncomeEntryInput = z.infer<typeof incomeEntrySchema>;

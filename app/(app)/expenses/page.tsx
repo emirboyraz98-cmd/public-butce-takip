@@ -112,6 +112,7 @@ export default async function ExpensesPage() {
     amount: Number(e.amount),
     currency: e.currency,
     frequency: e.frequency,
+    recurrenceEndMonth: e.recurrenceEndMonth,
     installmentCount: e.installmentCount,
   }));
 
@@ -155,6 +156,7 @@ export default async function ExpensesPage() {
       date: format(e.date, "yyyy-MM-dd"),
       paymentMonth: e.paymentMonth,
       frequency: e.frequency,
+      recurrenceEndMonth: e.recurrenceEndMonth,
       amount: e.amount.toString(),
       installmentCount: e.installmentCount,
       currency: e.currency,
@@ -273,6 +275,7 @@ export default async function ExpensesPage() {
       amount: e.amount.toString(),
       currency: e.currency,
       frequency: e.frequency,
+      recurrenceEndMonth: e.recurrenceEndMonth,
       note: e.note,
       baseAmount: toBase(
         new Decimal(e.amount.toString()),
@@ -303,6 +306,7 @@ export default async function ExpensesPage() {
         date: format(e.date, "yyyy-MM-dd"),
         paymentMonth: e.paymentMonth,
         frequency: e.frequency,
+        recurrenceEndMonth: e.recurrenceEndMonth,
         installmentCount: e.installmentCount,
         amount: Number(e.amount),
       };
@@ -345,7 +349,13 @@ export default async function ExpensesPage() {
 
       if (e.frequency !== "MONTHLY") return [toEntry(firstDate, firstMonth)];
 
-      return monthSequence(firstMonth, maxMonth(firstMonth, currentMonth)).map(
+      // Tekrar bitmişse orada durur; bugüne kadar uzatmak, artık ödenmeyen
+      // bir gideri harcama dağılımında yaşatmak olurdu.
+      const son = minMonth(
+        e.recurrenceEndMonth,
+        maxMonth(firstMonth, currentMonth)
+      );
+      return monthSequence(firstMonth, son).map(
         (month) =>
           // İlk ayda kaydın kendi günü korunuyor; sonraki aylar ayın başına
           // yazılıyor — o aylarda kayda ait bir gün yok.

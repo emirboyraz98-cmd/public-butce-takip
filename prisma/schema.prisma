@@ -290,6 +290,16 @@ model IncomeEntry {
   note       String?
   date       DateTime       @db.Date
   frequency  EntryFrequency @default(ONE_TIME)
+  /**
+   * Tekrarlayan kaydın son ayı (yyyy-MM), o ay DAHİL. `null` = hâlâ
+   * sürüyor. Yalnızca `frequency = MONTHLY` iken okunur.
+   *
+   * Buna ihtiyaç var çünkü tekrarlayan bir kaydı bitirmenin tek yolu onu
+   * SİLMEKTİ — o da geçmişi siliyordu. "Taşındım, mart'tan beri kira
+   * ödemiyorum" demek, ödenen aylardaki kirayı da kayıttan düşürmek
+   * anlamına geliyordu.
+   */
+  recurrenceEndMonth String?
   createdAt  DateTime       @default(now())
   updatedAt  DateTime       @updatedAt
 
@@ -337,6 +347,16 @@ model Expense {
   /// paranın ne zaman çıktığı `paymentMonth`'tadır.
   date             DateTime        @db.Date
   frequency        EntryFrequency  @default(ONE_TIME)
+  /**
+   * Tekrarlayan kaydın son ayı (yyyy-MM), o ay DAHİL. `null` = hâlâ
+   * sürüyor. Yalnızca `frequency = MONTHLY` iken okunur.
+   *
+   * Buna ihtiyaç var çünkü tekrarlayan bir kaydı bitirmenin tek yolu onu
+   * SİLMEKTİ — o da geçmişi siliyordu. "Taşındım, mart'tan beri kira
+   * ödemiyorum" demek, ödenen aylardaki kirayı da kayıttan düşürmek
+   * anlamına geliyordu.
+   */
+  recurrenceEndMonth String?
   kind             ExpenseKind     @default(OTHER)
   /**
    * Ekstrenin ödendiği ay (yyyy-MM). Yalnızca kredi kartı kayıtlarında

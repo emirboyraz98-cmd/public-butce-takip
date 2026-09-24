@@ -31,6 +31,11 @@ function toFormData(values: RecordValues, kind: RecordKind): FormData {
   if (values.note) fd.set("note", values.note);
   fd.set("date", values.date);
   fd.set("frequency", values.frequency);
+  // Tek seferlik kayıtta bitiş ayı anlamsız; forma yazılmış eski bir değer
+  // taşınmasın diye yalnızca tekrarlayanda gönderiliyor.
+  if (values.frequency === "MONTHLY" && values.recurrenceEndMonth) {
+    fd.set("recurrenceEndMonth", values.recurrenceEndMonth);
+  }
   fd.set("kind", kind === "card" ? "CREDIT_CARD" : "OTHER");
   if (kind === "card") {
     fd.set("paymentMonth", values.paymentMonth);

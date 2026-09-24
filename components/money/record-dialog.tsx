@@ -37,6 +37,8 @@ export type RecordValues = {
   currency: "TRY" | "USD";
   date: string;
   frequency: "ONE_TIME" | "MONTHLY";
+  /** yyyy-MM; yalnızca MONTHLY iken anlamlı. Boş dize = bitiş yok. */
+  recurrenceEndMonth: string;
   note: string;
   paymentMonth: string;
   installmentCount: number;
@@ -50,6 +52,7 @@ const EMPTY: RecordValues = {
   currency: "TRY",
   date: "",
   frequency: "ONE_TIME",
+  recurrenceEndMonth: "",
   note: "",
   paymentMonth: "",
   installmentCount: 1,
@@ -396,6 +399,25 @@ export function RecordDialog({
             />
           </Field>
         </div>
+
+        {/*
+          Bitiş ayı yalnızca tekrarlayan kayıtta sorulur; tek seferlik
+          kayıtta anlamsız bir alan olur ve formu şişirirdi.
+        */}
+        {values.frequency === "MONTHLY" && (
+          <Field label="Son ay (opsiyonel)">
+            <Input
+              type="month"
+              value={values.recurrenceEndMonth}
+              onChange={(e) => change({ recurrenceEndMonth: e.target.value })}
+            />
+            <p className="text-muted-foreground mt-1 text-[12px] leading-snug">
+              Tekrar bu ayın sonunda biter; yazdığın ay dahildir. Boş
+              bırakırsan süresiz tekrar eder. Bitiş vermek geçmişi bozmaz —
+              ödenmiş aylar kayıtta kalır.
+            </p>
+          </Field>
+        )}
 
         {error && (
           <p className="text-destructive text-[13px] font-semibold">{error}</p>

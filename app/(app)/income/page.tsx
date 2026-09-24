@@ -60,6 +60,7 @@ export default async function IncomePage() {
       amount: e.amount.toString(),
       currency: e.currency,
       frequency: e.frequency,
+      recurrenceEndMonth: e.recurrenceEndMonth,
       note: e.note,
       baseAmount: base.toFixed(2),
       kind: "income",

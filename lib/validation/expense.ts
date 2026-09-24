@@ -16,6 +16,15 @@ export const expenseEntrySchema = z.object({
   date: z.string().min(1, "Tarih gerekli"),
   frequency: z.enum(["ONE_TIME", "MONTHLY"]),
   /**
+   * Tekrarlayan kaydın son ayı (yyyy-MM), o ay DAHİL. Boş = hâlâ sürüyor.
+   * Tek seferlik kayıtlarda yok sayılır.
+   */
+  recurrenceEndMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/, "Ay yyyy-AA biçiminde olmalı")
+    .optional()
+    .nullable(),
+  /**
    * Hangi sekmeye ait; belirtilmezse "Genel Giderler". `.default()` yerine
    * `.optional()` kullanılıyor — default, zod'un giriş ve çıkış tiplerini
    * ayırdığı için react-hook-form çözümleyicisiyle uyuşmuyor.

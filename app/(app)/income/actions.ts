@@ -27,6 +27,9 @@ export async function createIncomeEntry(
     note: formData.get("note") || undefined,
     date: formData.get("date"),
     frequency: formData.get("frequency"),
+    // Boş dize "bitiş yok" demek; şema null bekliyor.
+    recurrenceEndMonth:
+      (formData.get("recurrenceEndMonth") as string | null) || null,
   });
 
   if (!parsed.success) {
@@ -51,6 +54,7 @@ export async function createIncomeEntry(
       note,
       date: new Date(`${date}T00:00:00Z`),
       frequency,
+      recurrenceEndMonth: parsed.data.recurrenceEndMonth ?? null,
     },
   });
 
@@ -74,6 +78,9 @@ export async function updateIncomeEntry(
     note: formData.get("note") || undefined,
     date: formData.get("date"),
     frequency: formData.get("frequency"),
+    // Boş dize "bitiş yok" demek; şema null bekliyor.
+    recurrenceEndMonth:
+      (formData.get("recurrenceEndMonth") as string | null) || null,
   });
 
   if (!parsed.success) {
@@ -99,6 +106,7 @@ export async function updateIncomeEntry(
       note: note ?? null,
       date: new Date(`${date}T00:00:00Z`),
       frequency,
+      recurrenceEndMonth: parsed.data.recurrenceEndMonth ?? null,
     },
   });
 
