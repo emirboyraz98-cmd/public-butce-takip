@@ -8,7 +8,13 @@ import { Button } from "./button";
 import { Table } from "./table";
 
 /** Kayıt listelerinde varsayılan olarak görünen satır sayısı. */
-export const DEFAULT_VISIBLE_ROWS = 5;
+/*
+ * Beşti; küçük listelerde bile ("7 kayıttan en yeni 5 tanesi görünüyor")
+ * kaydırma gerektiriyor ve tablo dolu görünmeden kırpılmış hissettiriyordu.
+ * Sekiz, tipik bir ayın kayıtlarını çoğunlukla tek ekrana sığdırıyor ama
+ * sayfayı da uzatmıyor.
+ */
+export const DEFAULT_VISIBLE_ROWS = 8;
 
 /**
  * Kaydırıldığında başlık satırı yerinde kalsın. Sticky, `tr` yerine `th`

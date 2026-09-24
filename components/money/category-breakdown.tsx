@@ -77,6 +77,8 @@ export function CategoryBreakdown({
   const [view, setView] = useState<"pie" | "bar">("pie");
   const [barCategory, setBarCategory] = useState<string>(ALL_CATEGORIES);
   const [periodMonths, setPeriodMonths] = useState<number>(12);
+  /** "Başka ay" açıldığında ham ay girdisi görünür. */
+  const [otherMonthOpen, setOtherMonthOpen] = useState(false);
 
   // Ay filtresi dışındaki ortak süzgeç. Sütun görünümü aylara yayıldığı için
   // tek bir ayla sınırlanamaz.
@@ -145,37 +147,73 @@ export function CategoryBreakdown({
       <div className="flex flex-wrap items-end gap-3">
         {view === "pie" ? (
           <>
+            {/*
+              Ay seçmenin ÜÇ ayrı yolu vardı: ham ay girdisi, "Tüm zamanlar"
+              düğmesi ve son üç ayın çipleri. Üçü yan yana durduğu için
+              panel, sayfanın kendi tarih filtresiyle karışan kalabalık bir
+              denetim yığınına dönüşüyordu. Tek şerit kaldı; listede
+              olmayan bir ay gerekirse "Başka ay" onu açıyor.
+            */}
             <div className="grid w-full gap-1.5 sm:w-auto">
-              <label className="text-sm font-medium" htmlFor="breakdown-month">
-                Ay
-              </label>
-              <Input
-                id="breakdown-month"
-                type="month"
-                value={month === ALL_MONTHS ? "" : month}
-                onChange={(e) => setMonth(e.target.value || ALL_MONTHS)}
-                className="w-full sm:w-40"
-              />
+              <p className="eyebrow">Dönem</p>
+              <div className="border-border flex flex-wrap border">
+                {[
+                  { value: ALL_MONTHS, label: "Tüm zamanlar" },
+                  ...months.slice(0, 3).map((m) => ({
+                    value: m,
+                    label: formatMonth(m),
+                  })),
+                ].map((secenek) => (
+                  <button
+                    key={secenek.value}
+                    type="button"
+                    aria-pressed={month === secenek.value}
+                    onClick={() => {
+                      setMonth(secenek.value);
+                      setOtherMonthOpen(false);
+                    }}
+                    className={cn(
+                      "border-border min-h-11 border-l px-3 text-[13px] font-semibold first:border-l-0 sm:min-h-9",
+                      month === secenek.value
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-muted"
+                    )}
+                  >
+                    {secenek.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  aria-pressed={otherMonthOpen}
+                  onClick={() => setOtherMonthOpen((v) => !v)}
+                  className={cn(
+                    "border-border min-h-11 border-l px-3 text-[13px] font-semibold sm:min-h-9",
+                    otherMonthOpen
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted"
+                  )}
+                >
+                  Başka ay
+                </button>
+              </div>
             </div>
-            <Button
-              type="button"
-              size="sm"
-              variant={month === ALL_MONTHS ? "default" : "outline"}
-              onClick={() => setMonth(ALL_MONTHS)}
-            >
-              Tüm zamanlar
-            </Button>
-            {months.slice(0, 3).map((m) => (
-              <Button
-                key={m}
-                type="button"
-                size="sm"
-                variant={month === m ? "default" : "outline"}
-                onClick={() => setMonth(m)}
-              >
-                {formatMonth(m)}
-              </Button>
-            ))}
+            {otherMonthOpen && (
+              <div className="grid w-full gap-1.5 sm:w-auto">
+                <label
+                  className="text-sm font-medium"
+                  htmlFor="breakdown-month"
+                >
+                  Ay seç
+                </label>
+                <Input
+                  id="breakdown-month"
+                  type="month"
+                  value={month === ALL_MONTHS ? "" : month}
+                  onChange={(e) => setMonth(e.target.value || ALL_MONTHS)}
+                  className="w-full sm:w-40"
+                />
+              </div>
+            )}
           </>
         ) : (
           <>
@@ -290,7 +328,13 @@ export function CategoryBreakdown({
         <>
           <p className="text-sm">
             <span className="text-muted-foreground">
-              {month === ALL_MONTHS ? "Tüm zamanlar" : formatMonth(month)} toplamı:{" "}
+              {/*
+                Sayfanın üstünde de bir "TOPLAM" var ve o, listedeki
+                kayıtların toplamı. İkisi farklı kapsamda olduğu için bu
+                satır neyin toplandığını açıkça söylüyor.
+              */}
+              {month === ALL_MONTHS ? "Tüm zamanlar" : formatMonth(month)}{" "}
+              bu dağılımda toplam:{" "}
             </span>
             <span className="font-medium">{formatMoney(total, baseCurrency)}</span>
           </p>

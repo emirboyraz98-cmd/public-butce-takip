@@ -523,11 +523,14 @@ export default async function DashboardPage({
         source: "Kredi Kartı",
         entries: [
           ...cardThisMonth.map(({ entry, cash }) => ({
-            // Taksitli harcamada bu ay yalnızca taksit kadar para çıkar.
+            // Taksitli harcamada bu ay yalnızca taksit kadar para çıkar;
+            // ek bunu söylüyor. Kategori dağılımında ise ek olmadan
+            // toplanıyor, yoksa aynı kategori iki satıra bölünürdü.
             categoryName:
               entry.installmentCount > 1
                 ? `${entry.category.name} (taksit)`
                 : entry.category.name,
+            rollUpName: entry.category.name,
             amountInBase: toBaseForMonth(cash, entry.currency, month),
           })),
           ...(cardGapBase.isZero()
@@ -608,8 +611,8 @@ export default async function DashboardPage({
     for (const group of expenseGroups) {
       for (const item of group.items) {
         byCategory.set(
-          item.category,
-          (byCategory.get(item.category) ?? new Decimal(0)).plus(item.amount)
+          item.rollUpName,
+          (byCategory.get(item.rollUpName) ?? new Decimal(0)).plus(item.amount)
         );
       }
     }

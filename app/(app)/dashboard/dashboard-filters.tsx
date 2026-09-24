@@ -22,6 +22,15 @@ const PRESETS = [
   { label: "+1 yıl", back: 2, forward: 12 },
 ];
 
+/*
+ * Yedi düğme tek şeritte yan yanaydı ve hepsi aynı görünüyordu: "+3 ay"ın
+ * geçmişe değil İLERİYE baktığı yalnızca "+" işaretinden anlaşılıyordu,
+ * o da kolayca gözden kaçıyordu. İki gruba ayrılıp üstlerine ne oldukları
+ * yazıldı.
+ */
+const GECMIS = PRESETS.filter((p) => p.forward === 0);
+const TAHMIN = PRESETS.filter((p) => p.forward > 0);
+
 function rangeFor(preset: { back: number; forward: number }, now: Date) {
   return {
     from: format(subMonths(now, preset.back), "yyyy-MM"),
@@ -76,23 +85,73 @@ export function DashboardFilters({ from, to }: { from: string; to: string }) {
         </div>
       )}
 
-      {/* Tek çerçeve içinde bitişik düğmeler: teslimdeki segment denetimi.
-          Geçmiş ve projeksiyon aralıkları aynı şeridde ama etiketlerdeki
-          "+" işareti ileriye baktığını söylüyor. */}
+      <div className="flex flex-wrap items-end gap-3">
+        <PresetGroup
+          baslik="Geçmiş"
+          presets={GECMIS}
+          activeLabel={active?.label}
+          onPick={(preset) => {
+            const r = rangeFor(preset, new Date());
+            setCustomOpen(false);
+            applyRange(r.from, r.to);
+          }}
+        />
+        <PresetGroup
+          baslik="Bugünden ileri"
+          presets={TAHMIN}
+          activeLabel={active?.label}
+          onPick={(preset) => {
+            const r = rangeFor(preset, new Date());
+            setCustomOpen(false);
+            applyRange(r.from, r.to);
+          }}
+        />
+        <div>
+          <p className="eyebrow mb-1">Aralık</p>
+          <button
+            type="button"
+            aria-pressed={showCustom}
+            onClick={() => setCustomOpen((v) => !v)}
+            className={cn(
+              "border-border min-h-11 border px-3 text-[13px] font-semibold sm:min-h-9",
+              showCustom
+                ? "bg-primary text-primary-foreground"
+                : "hover:bg-muted"
+            )}
+          >
+            Özel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Tek bir segment grubu: üstünde ne olduğunu söyleyen bir başlık. */
+function PresetGroup({
+  baslik,
+  presets,
+  activeLabel,
+  onPick,
+}: {
+  baslik: string;
+  presets: typeof PRESETS;
+  activeLabel: string | undefined;
+  onPick: (preset: (typeof PRESETS)[number]) => void;
+}) {
+  return (
+    <div>
+      <p className="eyebrow mb-1">{baslik}</p>
       <div className="border-border flex flex-wrap border">
-        {PRESETS.map((preset) => (
+        {presets.map((preset) => (
           <button
             key={preset.label}
             type="button"
-            aria-pressed={active?.label === preset.label}
-            onClick={() => {
-              const r = rangeFor(preset, new Date());
-              setCustomOpen(false);
-              applyRange(r.from, r.to);
-            }}
+            aria-pressed={activeLabel === preset.label}
+            onClick={() => onPick(preset)}
             className={cn(
               "border-border min-h-11 border-l px-3 text-[13px] font-semibold first:border-l-0 sm:min-h-9",
-              active?.label === preset.label
+              activeLabel === preset.label
                 ? "bg-primary text-primary-foreground"
                 : "hover:bg-muted"
             )}
@@ -100,17 +159,6 @@ export function DashboardFilters({ from, to }: { from: string; to: string }) {
             {preset.label}
           </button>
         ))}
-        <button
-          type="button"
-          aria-pressed={showCustom}
-          onClick={() => setCustomOpen((v) => !v)}
-          className={cn(
-            "border-border min-h-11 border-l px-3 text-[13px] font-semibold sm:min-h-9",
-            showCustom ? "bg-primary text-primary-foreground" : "hover:bg-muted"
-          )}
-        >
-          Özel
-        </button>
       </div>
     </div>
   );

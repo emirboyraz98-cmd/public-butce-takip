@@ -10,7 +10,17 @@ export type CategorizedEntry = {
   frequency: "ONE_TIME" | "MONTHLY";
 };
 
-export type CategoryAmount = { category: string; amount: Decimal };
+export type CategoryAmount = {
+  category: string;
+  amount: Decimal;
+  /**
+   * Kaynaklar arası toplarken kullanılacak ad. Kaynak içindeki `category`
+   * bağlam eki taşıyabiliyor ("Eğlence (taksit)"); bu ek kaynak
+   * listesinde işe yarıyor ama kategori dağılımında aynı kategoriyi iki
+   * satıra bölüyordu: "eğlenceye ne verdim" sorusu iki rakama dağılıyordu.
+   */
+  rollUpName: string;
+};
 
 /**
  * Verilen ay için, girişleri kategoriye göre gruplayıp toplar. Tutarlar
@@ -18,17 +28,29 @@ export type CategoryAmount = { category: string; amount: Decimal };
  * kur dönüşümü yapmaz, sadece gruplar).
  */
 export function groupByCategory(
-  entries: { categoryName: string; amountInBase: Decimal }[]
+  entries: {
+    categoryName: string;
+    amountInBase: Decimal;
+    /** Verilmezse kategori adının kendisi kullanılır. */
+    rollUpName?: string;
+  }[]
 ): CategoryAmount[] {
-  const totals = new Map<string, Decimal>();
+  const totals = new Map<string, { amount: Decimal; rollUpName: string }>();
 
   for (const entry of entries) {
-    const current = totals.get(entry.categoryName) ?? new Decimal(0);
-    totals.set(entry.categoryName, current.plus(entry.amountInBase));
+    const current = totals.get(entry.categoryName);
+    totals.set(entry.categoryName, {
+      amount: (current?.amount ?? new Decimal(0)).plus(entry.amountInBase),
+      rollUpName: entry.rollUpName ?? entry.categoryName,
+    });
   }
 
   return [...totals.entries()]
-    .map(([category, amount]) => ({ category, amount }))
+    .map(([category, { amount, rollUpName }]) => ({
+      category,
+      amount,
+      rollUpName,
+    }))
     .sort((a, b) => b.amount.comparedTo(a.amount));
 }
 
@@ -59,7 +81,14 @@ export type SourceGroup = {
  * arayüzde sabit bir okuma düzeni kurulabilir (boş kaynaklar düşer).
  */
 export function groupBySource(
-  groups: { source: string; entries: { categoryName: string; amountInBase: Decimal }[] }[]
+  groups: {
+    source: string;
+    entries: {
+      categoryName: string;
+      amountInBase: Decimal;
+      rollUpName?: string;
+    }[];
+  }[]
 ): SourceGroup[] {
   return groups
     .map(({ source, entries }) => {
