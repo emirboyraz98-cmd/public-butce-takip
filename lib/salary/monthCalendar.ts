@@ -1,4 +1,8 @@
-import { eachDayOfInterval, endOfMonth, getDay, startOfMonth } from "date-fns";
+import {
+  dayOfWeekUtc,
+  daysOfMonthUtc,
+  monthStartUtc,
+} from "@/lib/date/utc";
 
 import type { DayType } from "./dailyFormula";
 import {
@@ -51,14 +55,9 @@ export type MonthCalendar = {
   counts: Record<DayType, number> & { UNCOVERED: number };
 };
 
-function parseMonth(month: string): Date {
-  const [year, monthNum] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, monthNum - 1, 1));
-}
-
-/** date-fns pazar = 0 döner; ızgara pazartesiyle başladığı için kaydırılır. */
+/** Pazar = 0 gelir; ızgara pazartesiyle başladığı için kaydırılır. */
 function mondayFirstIndex(date: Date): number {
-  return (getDay(date) + 6) % 7;
+  return (dayOfWeekUtc(date) + 6) % 7;
 }
 
 export function buildMonthCalendar({
@@ -72,11 +71,7 @@ export function buildMonthCalendar({
   holidayDateKeys: ReadonlySet<string>;
   dayExceptions?: DayExceptionMap;
 }): MonthCalendar {
-  const monthStart = startOfMonth(parseMonth(month));
-  const dates = eachDayOfInterval({
-    start: monthStart,
-    end: endOfMonth(monthStart),
-  });
+  const dates = daysOfMonthUtc(month);
 
   const counts = {
     NORMAL: 0,
@@ -118,7 +113,7 @@ export function buildMonthCalendar({
 
 /** "2026-08" → "Ağustos 2026". Ay seçicide okunur etiket için. */
 export function monthLabel(month: string): string {
-  const date = parseMonth(month);
+  const date = monthStartUtc(month);
   return new Intl.DateTimeFormat("tr-TR", {
     month: "long",
     year: "numeric",

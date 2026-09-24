@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { eachDayOfInterval, endOfMonth, startOfMonth } from "date-fns";
+import { daysOfMonthUtc } from "@/lib/date/utc";
 
 import {
   dailyAmountUsd,
@@ -40,11 +40,6 @@ export type MonthComputationResult = {
   monthLengthAdjustmentUsd: Decimal;
 };
 
-function parseMonth(month: string): Date {
-  const [year, monthNum] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, monthNum - 1, 1));
-}
-
 /**
  * Bir aya ait tüm günlerin nominal USD toplamını hesaplar (kur düzeltmesi
  * uygulanmadan önceki adım). Ay sınırını aşan çalışma/izin aralıkları, her
@@ -58,11 +53,7 @@ export function computeMonthNominal(
   holidayDateKeys: ReadonlySet<string>,
   dayExceptions?: DayExceptionMap
 ): MonthComputationResult {
-  const monthStart = parseMonth(month);
-  const days = eachDayOfInterval({
-    start: startOfMonth(monthStart),
-    end: endOfMonth(monthStart),
-  });
+  const days = daysOfMonthUtc(month);
 
   const breakdown: DailyBreakdownEntry[] = [];
   const dayTypeCounts: Record<DayType, number> = {

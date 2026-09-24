@@ -219,6 +219,15 @@ export default async function SalaryPage() {
               </li>
             ))}
           </ul>
+          {/*
+            Eksiğin giderildiği yere doğrudan bağlantı: hata metni nereye
+            gidileceğini söylüyor ama kullanıcıyı menüde aratıyordu.
+          */}
+          <p className="mt-2 text-[13px]">
+            <Link href="/salary/settings" className="font-semibold underline">
+              Maaş ayarlarını aç
+            </Link>
+          </p>
         </div>
       )}
 

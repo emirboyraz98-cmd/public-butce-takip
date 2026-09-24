@@ -1,5 +1,5 @@
 import Decimal from "decimal.js";
-import { format } from "date-fns";
+import { toMonthKeyUtc } from "@/lib/date/utc";
 
 export type Currency = "TRY" | "USD";
 
@@ -18,7 +18,7 @@ export type CurrencyTotals = Record<Currency, Decimal>;
  * MONTHLY: kendi ayından itibaren her ay tekrarlar (aylık tekrarlayan gider/gelir).
  */
 export function appliesToMonth(entry: Pick<MoneyEntry, "date" | "frequency">, month: string): boolean {
-  const entryMonth = format(entry.date, "yyyy-MM");
+  const entryMonth = toMonthKeyUtc(entry.date);
   if (entry.frequency === "ONE_TIME") return entryMonth === month;
   return entryMonth <= month;
 }

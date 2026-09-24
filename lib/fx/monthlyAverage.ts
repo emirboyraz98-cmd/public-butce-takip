@@ -1,18 +1,18 @@
 import Decimal from "decimal.js";
-import { eachDayOfInterval, endOfMonth, format, getDay, startOfMonth } from "date-fns";
+import {
+  daysOfMonthUtc,
+  isWeekdayUtc,
+  monthEndUtc,
+  monthStartUtc,
+  toMonthKeyUtc,
+} from "@/lib/date/utc";
 
 import { prisma } from "@/lib/prisma";
 import { fetchTcmbUsdSellingRate } from "./tcmb";
 
-function isWeekday(date: Date): boolean {
-  const day = getDay(date);
-  return day !== 0 && day !== 6;
-}
 
-function parseMonth(month: string): Date {
-  const [year, monthNum] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, monthNum - 1, 1));
-}
+
+
 
 /**
  * Ay içindeki hafta içi günler için TCMB kurlarını cache'ler (eksik olanları
@@ -22,14 +22,12 @@ function parseMonth(month: string): Date {
 const TCMB_CONCURRENCY = 6;
 
 export async function ensureTcmbRatesForMonth(month: string): Promise<void> {
-  const monthStart = parseMonth(month);
   // Henüz gelmemiş günler için TCMB'de veri olmaz; boşuna istek atıp
   // beklememek için bugünden sonrasını hiç denemeyiz.
   const today = new Date();
-  const days = eachDayOfInterval({
-    start: startOfMonth(monthStart),
-    end: endOfMonth(monthStart),
-  }).filter((day) => isWeekday(day) && day <= today);
+  const days = daysOfMonthUtc(month).filter(
+    (day) => isWeekdayUtc(day) && day <= today
+  );
 
   // Eksik günler tek sorguda bulunur; eskiden her gün için ayrı bir
   // findUnique atılıyordu (ayda 23 gidiş-dönüş).
@@ -66,11 +64,10 @@ export async function ensureTcmbRatesForMonth(month: string): Promise<void> {
 }
 
 async function averageForMonth(month: string): Promise<Decimal | null> {
-  const monthStart = parseMonth(month);
 
   const snapshots = await prisma.tcmbRateSnapshot.findMany({
     where: {
-      date: { gte: startOfMonth(monthStart), lte: endOfMonth(monthStart) },
+      date: { gte: monthStartUtc(month), lte: monthEndUtc(month) },
     },
   });
 
@@ -100,8 +97,8 @@ export async function getMonthlyAverageRates(
   if (months.length === 0) return new Map();
 
   const sorted = [...months].sort();
-  const rangeStart = startOfMonth(parseMonth(sorted[0]));
-  const rangeEnd = endOfMonth(parseMonth(sorted[sorted.length - 1]));
+  const rangeStart = monthStartUtc(sorted[0]);
+  const rangeEnd = monthEndUtc(sorted[sorted.length - 1]);
 
   const snapshots = await prisma.tcmbRateSnapshot.findMany({
     where: { date: { gte: rangeStart, lte: rangeEnd } },
@@ -110,7 +107,7 @@ export async function getMonthlyAverageRates(
 
   const sums = new Map<string, { total: Decimal; count: number }>();
   for (const s of snapshots) {
-    const key = format(s.date, "yyyy-MM");
+    const key = toMonthKeyUtc(s.date);
     const entry = sums.get(key) ?? { total: new Decimal(0), count: 0 };
     entry.total = entry.total.plus(new Decimal(s.usdSale.toString()));
     entry.count += 1;
@@ -185,12 +182,12 @@ export async function getMonthlyAverageUsdTryRateWithFallback(
   if (own) return { rate: own, sourceMonth: month, isFallback: false };
 
   const latestBefore = await prisma.tcmbRateSnapshot.findFirst({
-    where: { date: { lt: startOfMonth(parseMonth(month)) } },
+    where: { date: { lt: monthStartUtc(month) } },
     orderBy: { date: "desc" },
   });
 
   if (latestBefore) {
-    const fallbackMonth = format(latestBefore.date, "yyyy-MM");
+    const fallbackMonth = toMonthKeyUtc(latestBefore.date);
     const fallbackRate = await averageForMonth(fallbackMonth);
     if (fallbackRate) {
       return { rate: fallbackRate, sourceMonth: fallbackMonth, isFallback: true };

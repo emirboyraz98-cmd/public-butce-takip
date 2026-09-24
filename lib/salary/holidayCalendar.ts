@@ -1,4 +1,8 @@
-import { format, getDay, isWithinInterval } from "date-fns";
+import {
+  isSundayUtc,
+  isWithinDayIntervalUtc,
+  toDateKeyUtc,
+} from "@/lib/date/utc";
 
 import type { DayType } from "./dailyFormula";
 
@@ -8,12 +12,17 @@ export type WorkPeriodLike = {
   type: "WORKED" | "LEAVE";
 };
 
+/*
+ * Gün ve hafta günü UTC'den okunuyor. date-fns'in `format`/`getDay`
+ * fonksiyonları yerel saate bakıyordu; takvim istemcide çizildiği için
+ * aynı gün, bakan kişinin saat dilimine göre başka bir güne kayabiliyordu.
+ */
 export function toDateKey(date: Date): string {
-  return format(date, "yyyy-MM-dd");
+  return toDateKeyUtc(date);
 }
 
 export function isSunday(date: Date): boolean {
-  return getDay(date) === 0;
+  return isSundayUtc(date);
 }
 
 /** Gün bazlı elle düzeltmeler: yyyy-MM-dd -> gün tipi. */
@@ -49,7 +58,7 @@ export function classifyDay(
   if (override) return override;
 
   const covering = periods.find((p) =>
-    isWithinInterval(date, { start: p.startDate, end: p.endDate })
+    isWithinDayIntervalUtc(date, p.startDate, p.endDate)
   );
 
   if (!covering) return null;

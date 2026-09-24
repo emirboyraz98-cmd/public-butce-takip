@@ -318,18 +318,39 @@ export default async function ExpensesPage() {
     // Kategori adı ödeme yönteminden bağımsız: nakit ödenen "Yeme-İçme" ile
     // kartla ödenen "Yeme-İçme" tek kalemde toplanır — soru "toplam ne kadar
     // yemeğe verdim". Ayrıştırmak isteyen kaynak filtresini kullanır.
-    ...expenses.map((e) => {
-      const date = format(e.date, "yyyy-MM-dd");
-      return {
+    /*
+     * Tekrarlayan giderler her ay için ayrı bir satır üretir.
+     *
+     * Eskiden kayıt yalnızca GİRİLDİĞİ ayda görünüyordu: mayısta bir kez
+     * girilen kira eylülde bu panelde yoktu, ama Genel Bakış ve Bütçeler
+     * (appliesToMonth üzerinden) onu sayıyordu. Aynı ay için ekranda iki
+     * farklı harcama rakamı çıkıyordu.
+     *
+     * Kredi taksitleriyle aynı kural: ileri aylar "harcadım" değil plandır,
+     * o yüzden bugünden öteye yazılmaz.
+     */
+    ...expenses.flatMap((e) => {
+      const firstDate = format(e.date, "yyyy-MM-dd");
+      const firstMonth = firstDate.slice(0, 7);
+      const toEntry = (date: string, month: string): BreakdownEntry => ({
         date,
         categoryName: e.category.name,
         amount: toBase(
           new Decimal(e.amount.toString()),
           e.currency,
-          date.slice(0, 7)
+          month
         ).toNumber(),
         source: e.kind === "CREDIT_CARD" ? "Kredi Kartı" : "Genel Giderler",
-      };
+      });
+
+      if (e.frequency !== "MONTHLY") return [toEntry(firstDate, firstMonth)];
+
+      return monthSequence(firstMonth, maxMonth(firstMonth, currentMonth)).map(
+        (month) =>
+          // İlk ayda kaydın kendi günü korunuyor; sonraki aylar ayın başına
+          // yazılıyor — o aylarda kayda ait bir gün yok.
+          toEntry(month === firstMonth ? firstDate : `${month}-01`, month)
+      );
     }),
     // Kredi taksitleri bugüne kadar; ileri aylar "harcadım" değil, plandır.
     // Bunlar kategori değil, ayrı birer borç; aynı adlı bir harcama
@@ -548,6 +569,14 @@ export default async function ExpensesPage() {
       />
     </div>
   );
+}
+
+/**
+ * İkisinden GEÇ olanı. Tekrarlayan bir gider bu aydan sonra girilmişse
+ * (ileri tarihli kayıt) dizi boş kalmasın diye kendi ayına kadar uzar.
+ */
+function maxMonth(a: string, b: string): string {
+  return a > b ? a : b;
 }
 
 /** İkisinden erken olanı; bitiş yoksa sınır ayı. */

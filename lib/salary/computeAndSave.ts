@@ -1,4 +1,9 @@
-import { addMonths, endOfMonth, format, startOfMonth } from "date-fns";
+import {
+  addMonthsToKey,
+  monthEndUtc,
+  monthStartUtc,
+  toMonthKeyUtc,
+} from "@/lib/date/utc";
 
 import { prisma } from "@/lib/prisma";
 import { computeMonthNominal } from "./computeMonth";
@@ -24,19 +29,15 @@ const MAX_AUTO_MONTHS = 240; // güvenlik sınırı (20 yıl)
  */
 export const SALARY_FORMULA_VERSION = 1;
 
-function parseMonth(month: string): Date {
-  const [year, monthNum] = month.split("-").map(Number);
-  return new Date(Date.UTC(year, monthNum - 1, 1));
-}
-
 function monthsBetween(from: string, to: string): string[] {
   if (from > to) return [];
   const months: string[] = [];
-  let cursor = parseMonth(from);
-  const end = parseMonth(to);
-  while (cursor <= end && months.length < MAX_AUTO_MONTHS) {
-    months.push(format(cursor, "yyyy-MM"));
-    cursor = addMonths(cursor, 1);
+  // Ay anahtarları üzerinde yürünüyor: Date'e çevirip yerel saatle
+  // biçimlendirmek, UTC'nin batısında ayı bir geri kaydırıyordu.
+  let cursor = from;
+  while (cursor <= to && months.length < MAX_AUTO_MONTHS) {
+    months.push(cursor);
+    cursor = addMonthsToKey(cursor, 1);
   }
   return months;
 }
@@ -89,7 +90,7 @@ export function collectMonthsToCompute(
 export function findRateForMonth<
   T extends { effectiveFrom: Date; effectiveTo: Date | null }
 >(month: string, rates: T[]): T | null {
-  return findApplicableByPeriod(startOfMonth(parseMonth(month)), rates);
+  return findApplicableByPeriod(monthStartUtc(month), rates);
 }
 
 export async function resolveMonthMode(userId: string, month: string) {
@@ -152,8 +153,7 @@ async function computeFixedMonth(
 }
 
 async function computeVariableMonth(userId: string, month: string) {
-  const monthStart = parseMonth(month);
-  const monthEnd = endOfMonth(monthStart);
+  const monthEnd = monthEndUtc(month);
 
   const [baseSalaryRates, referenceFxRates, holidays, exceptions] =
     await Promise.all([
@@ -193,7 +193,9 @@ async function computeVariableMonth(userId: string, month: string) {
 
   if (!referenceRateEntry) {
     throw new Error(
-      `${month} ayı için geçerli bir referans kur bulunamadı. Önce Ayarlar'dan bir referans kur ekleyin.`
+      // "Ayarlar" deniyordu ama referans kur orada değil, MAAŞ AYARLARI'nda;
+      // kullanıcı yanlış sayfaya gidip alanı bulamıyordu.
+      `${month} ayı için geçerli bir referans kur bulunamadı. Maaş ayarları sayfasından bu ayı kapsayan bir referans kur ekle.`
     );
   }
 
@@ -299,7 +301,7 @@ async function recompute(
   userId: string,
   { onlyMissing }: { onlyMissing: boolean }
 ): Promise<RecomputeSummary> {
-  const currentMonth = format(new Date(), "yyyy-MM");
+  const currentMonth = toMonthKeyUtc(new Date());
 
   // Değişken maaşta hesaplanacak aylar takvimde işaretlenmiş günlerden
   // çıkar: bir ayda tek gün bile işaretliyse o ay hesaplanır, hiç işaret
@@ -319,14 +321,14 @@ async function recompute(
     ...rates
       .filter((r) => r.mode === "FIXED")
       .map((r) => ({
-        from: format(r.effectiveFrom, "yyyy-MM"),
-        to: r.effectiveTo ? format(r.effectiveTo, "yyyy-MM") : null,
+        from: toMonthKeyUtc(r.effectiveFrom),
+        to: r.effectiveTo ? toMonthKeyUtc(r.effectiveTo) : null,
       })),
     // Değişken taraf işaretli günlerden geliyor. Ayın türü yine dönemden
     // okunuyor; sabit bir aya düşen işaretler hesaba girmez, o ay zaten
     // sabit yoldan hesaplanır.
     ...markedDays.map((e) => {
-      const m = format(e.date, "yyyy-MM");
+      const m = toMonthKeyUtc(e.date);
       return { from: m, to: m };
     }),
   ];
