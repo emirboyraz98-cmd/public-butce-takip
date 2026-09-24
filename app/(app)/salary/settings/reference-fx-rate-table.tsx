@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/dialog";
 import { deleteReferenceFxRate } from "./actions";
 import { ReferenceFxRateForm } from "./reference-fx-rate-form";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type ReferenceFxRateRow = {
   id: string;
@@ -36,7 +37,12 @@ export function ReferenceFxRateTable({ rows }: { rows: ReferenceFxRateRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   if (rows.length === 0) {
-    return <p className="text-muted-foreground text-sm">Henüz kayıt yok.</p>;
+    return (
+      <EmptyState
+        title="Henüz referans kur yok"
+        description="Şirketin bordroyu hangi kurdan TL'ye çevirdiğini buraya yaz. Bu olmadan değişken maaş otomatik hesaplanamaz."
+      />
+    );
   }
 
   const editingRow = rows.find((r) => r.id === editingId);

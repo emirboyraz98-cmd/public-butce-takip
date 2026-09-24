@@ -57,8 +57,6 @@ export function SalaryCalendarCard({
     () =>
       buildMonthCalendar({
         month,
-        // Aralık kavramı kaldırıldı: gün tipleri yalnızca işaretli günlerden.
-        periods: [],
         holidayDateKeys,
         dayExceptions,
       }),

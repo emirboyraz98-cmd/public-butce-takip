@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { formatMoney, formatMonth } from "@/lib/format";
 import { deleteBaseSalaryRate } from "./actions";
 import { BaseSalaryRateForm } from "./base-salary-rate-form";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type BaseSalaryRateRow = {
   id: string;
@@ -39,7 +40,12 @@ export function BaseSalaryRateTable({ rows }: { rows: BaseSalaryRateRow[] }) {
   const [editingId, setEditingId] = useState<string | null>(null);
 
   if (rows.length === 0) {
-    return <p className="text-muted-foreground text-sm">Henüz kayıt yok.</p>;
+    return (
+      <EmptyState
+        title="Henüz baz maaş dönemi yok"
+        description="Hangi tarihten itibaren ne kadar kazandığını ve maaşın sabit mi gün bazlı mı olduğunu buradan gir. Zam aldığında eskisini silme, yeni bir dönem ekle — geçmiş ayların hesabı bozulmaz."
+      />
+    );
   }
 
   const editingRow = rows.find((r) => r.id === editingId);

@@ -1,29 +1,33 @@
 import { describe, expect, it } from "vitest";
 
 import { buildMonthCalendar, monthLabel } from "./monthCalendar";
-import type { WorkPeriodLike } from "./holidayCalendar";
 import type { DayType } from "./dailyFormula";
+import { markRange } from "./marks.testutil";
 
-const period = (
-  start: string,
-  end: string,
-  type: "WORKED" | "LEAVE"
-): WorkPeriodLike => ({
-  startDate: new Date(`${start}T00:00:00Z`),
-  endDate: new Date(`${end}T00:00:00Z`),
-  type,
-});
+/**
+ * Aralık senaryolarını, uygulamanın yaptığı gibi gün gün işaretlere
+ * açarak kurar (bkz. marks.testutil). "Çalışma dönemi" kavramı
+ * kaldırıldı; testler artık canlı yolu ölçüyor.
+ */
+const period = (start: string, end: string, type: "WORKED" | "LEAVE") =>
+  ({ start, end, type }) as const;
 
 const build = (
-  periods: WorkPeriodLike[],
+  periods: ReadonlyArray<ReturnType<typeof period>>,
   holidays: string[] = [],
   month = "2026-08"
-) =>
-  buildMonthCalendar({
+) => {
+  const holidayDateKeys = new Set(holidays);
+  const marks = new Map<string, DayType>();
+  for (const p of periods) {
+    markRange(p.start, p.end, p.type, holidayDateKeys, marks);
+  }
+  return buildMonthCalendar({
     month,
-    periods,
-    holidayDateKeys: new Set(holidays),
+    holidayDateKeys,
+    dayExceptions: marks,
   });
+};
 
 describe("buildMonthCalendar", () => {
   it("ayın bütün günlerini üretir", () => {
@@ -151,7 +155,6 @@ describe("buildMonthCalendar — yalnızca işaretli günler", () => {
   const buildMarked = (marks: Record<string, DayType>, holidays: string[] = []) =>
     buildMonthCalendar({
       month: "2026-08",
-      periods: [],
       holidayDateKeys: new Set(holidays),
       dayExceptions: new Map(Object.entries(marks)),
     });

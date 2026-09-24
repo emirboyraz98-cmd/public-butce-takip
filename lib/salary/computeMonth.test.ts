@@ -1,35 +1,33 @@
 import { describe, expect, it } from "vitest";
 
 import { computeMonthNominal } from "./computeMonth";
-import type { WorkPeriodLike } from "./holidayCalendar";
+import { markRange } from "./marks.testutil";
 
+const rate = (
+  amount: string,
+  from: string,
+  to: string | null = null
+) => ({
+  amount,
+  effectiveFrom: new Date(`${from}T00:00:00Z`),
+  effectiveTo: to ? new Date(`${to}T00:00:00Z`) : null,
+});
+
+/*
+ * Senaryolar eskiden "çalışma dönemi" aralıklarıyla kuruluyordu; o kavram
+ * kaldırıldı. markRange aynı aralıkları, uygulamanın yaptığı gibi gün gün
+ * işaretlere açıyor — yani bu testler artık canlı yolu ölçüyor.
+ */
 describe("computeMonthNominal", () => {
-  it("matches the spec validation example for a mixed month", () => {
-    // 2026-01-05 -> 2026-01-11: tam bir hafta (7 gün), her zaman tam 1 Pazar + 6 diğer gün içerir
-    const workPeriods: WorkPeriodLike[] = [
-      {
-        startDate: new Date("2026-01-05T00:00:00Z"),
-        endDate: new Date("2026-01-11T00:00:00Z"),
-        type: "WORKED",
-      },
-      {
-        startDate: new Date("2026-01-12T00:00:00Z"),
-        endDate: new Date("2026-01-13T00:00:00Z"),
-        type: "LEAVE",
-      },
-    ];
+  it("karma bir ayda şartname örneğini tutturur", () => {
+    // 5–11 Ocak 2026 tam bir hafta: her zaman tam 1 pazar + 6 diğer gün.
+    const marks = markRange("2026-01-05", "2026-01-11", "WORKED");
+    markRange("2026-01-12", "2026-01-13", "LEAVE", new Set(), marks);
 
     const result = computeMonthNominal(
       "2026-01",
-      workPeriods,
-      [
-        {
-          amount: "2000",
-          effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-          effectiveTo: null,
-        },
-      ],
-      new Set(["2026-01-01"])
+      [rate("2000", "2026-01-01")],
+      marks
     );
 
     expect(result.dayTypeCounts).toEqual({
@@ -43,107 +41,61 @@ describe("computeMonthNominal", () => {
     expect(result.usdNominalTotal.toFixed(2)).toBe("933.33");
   });
 
-  it("excludes days not covered by any work period", () => {
+  it("işaretsiz günleri hesaba katmaz", () => {
     const result = computeMonthNominal(
       "2026-02",
-      [],
-      [
-        {
-          amount: "2000",
-          effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-          effectiveTo: null,
-        },
-      ],
-      new Set()
+      [rate("2000", "2026-01-01")],
+      new Map()
     );
 
     expect(result.usdNominalTotal.toFixed(2)).toBe("0.00");
     expect(result.breakdown).toHaveLength(0);
   });
 
-  it("applies a public holiday inside a WORKED period at the PUBLIC_HOLIDAY rate", () => {
-    const workPeriods: WorkPeriodLike[] = [
-      {
-        startDate: new Date("2026-01-01T00:00:00Z"),
-        endDate: new Date("2026-01-01T00:00:00Z"),
-        type: "WORKED",
-      },
-    ];
+  it("çalışılan resmi tatili tatil ücretinden öder", () => {
+    const marks = markRange(
+      "2026-01-01",
+      "2026-01-01",
+      "WORKED",
+      new Set(["2026-01-01"])
+    );
 
     const result = computeMonthNominal(
       "2026-01",
-      workPeriods,
-      [
-        {
-          amount: "2000",
-          effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-          effectiveTo: null,
-        },
-      ],
-      new Set(["2026-01-01"])
+      [rate("2000", "2026-01-01")],
+      marks
     );
 
     expect(result.dayTypeCounts.PUBLIC_HOLIDAY).toBe(1);
     expect(result.usdNominalTotal.toFixed(2)).toBe("166.67");
   });
 
-  it("uses each day's own applicable base salary rate when a period spans a raise", () => {
-    const workPeriods: WorkPeriodLike[] = [
-      {
-        startDate: new Date("2026-01-05T00:00:00Z"),
-        endDate: new Date("2026-01-06T00:00:00Z"),
-        type: "WORKED",
-      },
-    ];
+  it("zam ortasında her güne kendi baz maaşını uygular", () => {
+    // 5 Ocak pazartesi, 6 Ocak salı: ikisi de normal gün.
+    const marks = markRange("2026-01-05", "2026-01-06", "WORKED");
 
-    // 2026-01-05 Pazartesi, 2026-01-06 Salı: ikisi de NORMAL
     const result = computeMonthNominal(
       "2026-01",
-      workPeriods,
       [
-        {
-          amount: "2000",
-          effectiveFrom: new Date("2026-01-01T00:00:00Z"),
-          effectiveTo: new Date("2026-01-05T00:00:00Z"),
-        },
-        {
-          amount: "2250",
-          effectiveFrom: new Date("2026-01-06T00:00:00Z"),
-          effectiveTo: null,
-        },
+        rate("2000", "2026-01-01", "2026-01-05"),
+        rate("2250", "2026-01-06"),
       ],
-      new Set()
+      marks
     );
 
-    const day5 = result.breakdown.find((d) => d.date === "2026-01-05");
-    const day6 = result.breakdown.find((d) => d.date === "2026-01-06");
-
-    expect(day5?.amountUsd).toBe("100.00");
-    expect(day6?.amountUsd).toBe("112.50");
+    expect(result.breakdown.find((d) => d.date === "2026-01-05")?.amountUsd).toBe(
+      "100.00"
+    );
+    expect(result.breakdown.find((d) => d.date === "2026-01-06")?.amountUsd).toBe(
+      "112.50"
+    );
   });
 
-  it("throws a clear error when a covered day has no applicable base salary rate", () => {
-    const workPeriods: WorkPeriodLike[] = [
-      {
-        startDate: new Date("2026-01-05T00:00:00Z"),
-        endDate: new Date("2026-01-05T00:00:00Z"),
-        type: "WORKED",
-      },
-    ];
+  it("işaretli güne baz maaş yoksa anlaşılır hata verir", () => {
+    const marks = markRange("2026-01-05", "2026-01-05", "WORKED");
 
     expect(() =>
-      computeMonthNominal(
-        "2026-01",
-        workPeriods,
-        [
-          {
-            amount: "2000",
-            effectiveFrom: new Date("2026-02-01T00:00:00Z"),
-            effectiveTo: null,
-          },
-        ],
-        new Set()
-      )
+      computeMonthNominal("2026-01", [rate("2000", "2026-02-01")], marks)
     ).toThrow(/baz maaş/i);
   });
 });

@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { monthLengthAdjustmentDays } from "./dailyFormula";
 import { computeMonthNominal } from "./computeMonth";
-import type { WorkPeriodLike } from "./holidayCalendar";
+import type { DayType } from "./dailyFormula";
+import { markRange } from "./marks.testutil";
 
 const BASE_SALARY = 3000;
 // saatlik = 3000 / 225 = 13.3333..., normal gün = 11.25 × saatlik = 150
@@ -12,21 +13,22 @@ const rates = [
   { amount: BASE_SALARY, effectiveFrom: new Date("2020-01-01"), effectiveTo: null },
 ];
 
-function worked(from: string, to: string): WorkPeriodLike {
-  return {
-    startDate: new Date(`${from}T00:00:00Z`),
-    endDate: new Date(`${to}T00:00:00Z`),
-    type: "WORKED",
-  };
+/*
+ * Aralıklar, uygulamanın yaptığı gibi gün gün işaretlere açılıyor:
+ * "çalışma dönemi" kavramı kaldırıldı (bkz. marks.testutil).
+ */
+function marks(
+  ...araliklar: ReadonlyArray<readonly [string, string, "WORKED" | "LEAVE"]>
+): Map<string, DayType> {
+  const out = new Map<string, DayType>();
+  for (const [from, to, mark] of araliklar) {
+    markRange(from, to, mark, new Set(), out);
+  }
+  return out;
 }
 
-function leave(from: string, to: string): WorkPeriodLike {
-  return {
-    startDate: new Date(`${from}T00:00:00Z`),
-    endDate: new Date(`${to}T00:00:00Z`),
-    type: "LEAVE",
-  };
-}
+const worked = (from: string, to: string) => [from, to, "WORKED"] as const;
+const leave = (from: string, to: string) => [from, to, "LEAVE"] as const;
 
 describe("monthLengthAdjustmentDays", () => {
   it("31 günlük ayda bir normal gün düşer", () => {
@@ -60,9 +62,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
     // Mart 2026: 31 gün, tamamı çalışılmış.
     const result = computeMonthNominal(
       "2026-03",
-      [worked("2026-03-01", "2026-03-31")],
       rates,
-      new Set()
+      marks(worked("2026-03-01", "2026-03-31"))
     );
 
     expect(result.monthLengthAdjustment).toBe(-1);
@@ -79,9 +80,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
   it("30 günlük ayı olduğu gibi bırakır", () => {
     const result = computeMonthNominal(
       "2026-04",
-      [worked("2026-04-01", "2026-04-30")],
       rates,
-      new Set()
+      marks(worked("2026-04-01", "2026-04-30"))
     );
 
     expect(result.monthLengthAdjustment).toBe(0);
@@ -91,9 +91,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
   it("28 günlük şubatta normal güne 2 gün ekler", () => {
     const result = computeMonthNominal(
       "2026-02",
-      [worked("2026-02-01", "2026-02-28")],
       rates,
-      new Set()
+      marks(worked("2026-02-01", "2026-02-28"))
     );
 
     expect(result.monthLengthAdjustment).toBe(2);
@@ -127,12 +126,15 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
 
     const result = computeMonthNominal(
       "2026-03",
-      [
-        leave("2026-03-01", "2026-03-11"), // 11 gün izin
-        worked("2026-03-12", "2026-03-31"), // 20 gün: 10'u resmi tatil
-      ],
       rates,
-      holidays
+      // Tatiller işaret ANINDA çözülüyor: "Çalıştı" denen tatil günü
+      // PUBLIC_HOLIDAY tipiyle kaydediliyor (bkz. dayTypeForMark).
+      (() => {
+        const out = new Map<string, DayType>();
+        markRange("2026-03-01", "2026-03-11", "LEAVE", holidays, out);
+        markRange("2026-03-12", "2026-03-31", "WORKED", holidays, out);
+        return out;
+      })()
     );
 
     expect(result.dayTypeCounts.LEAVE).toBe(11);
@@ -152,15 +154,13 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
     // Aynı gün tipi, farklı uzunluktaki iki ayda aynı günlük tutarı vermeli.
     const march = computeMonthNominal(
       "2026-03",
-      [worked("2026-03-02", "2026-03-02")],
       rates,
-      new Set()
+      marks(worked("2026-03-02", "2026-03-02"))
     );
     const april = computeMonthNominal(
       "2026-04",
-      [worked("2026-04-01", "2026-04-01")],
       rates,
-      new Set()
+      marks(worked("2026-04-01", "2026-04-01"))
     );
 
     expect(march.breakdown[0].amountUsd).toBe(april.breakdown[0].amountUsd);
@@ -170,9 +170,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
   it("31 günlük ayın tamamı izinliyse düzeltme uygulanmaz", () => {
     const result = computeMonthNominal(
       "2026-03",
-      [leave("2026-03-01", "2026-03-31")],
       rates,
-      new Set()
+      marks(leave("2026-03-01", "2026-03-31"))
     );
 
     expect(result.dayTypeCounts.NORMAL).toBe(0);
@@ -186,9 +185,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
     // bir ay yoktur; gün düşmek girilmemiş günlerden kesinti yapmak olurdu.
     const result = computeMonthNominal(
       "2026-03",
-      [worked("2026-03-02", "2026-03-06")],
       rates,
-      new Set()
+      marks(worked("2026-03-02", "2026-03-06"))
     );
 
     expect(result.monthLengthAdjustment).toBe(0);
@@ -199,9 +197,8 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
   it("kısmen girilmiş şubata gün EKLEMEZ (olmayan maaş uydurmaz)", () => {
     const result = computeMonthNominal(
       "2026-02",
-      [worked("2026-02-02", "2026-02-06")],
       rates,
-      new Set()
+      marks(worked("2026-02-02", "2026-02-06"))
     );
 
     expect(result.monthLengthAdjustment).toBe(0);
@@ -209,7 +206,11 @@ describe("computeMonthNominal — ay uzunluğu düzeltmesi", () => {
   });
 
   it("hiç kayıt yoksa düzeltme de tutar da üretmez", () => {
-    const result = computeMonthNominal("2026-03", [], rates, new Set());
+    const result = computeMonthNominal(
+      "2026-03",
+      rates,
+      marks()
+    );
 
     expect(result.usdNominalTotal.toNumber()).toBe(0);
     expect(result.monthLengthAdjustment).toBe(0);

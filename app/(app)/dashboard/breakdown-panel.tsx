@@ -5,6 +5,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { formatMoneyWhole, formatMonth } from "@/lib/format";
 import type { SourceGroup } from "./cashflow-section";
+import { EmptyState } from "@/components/ui/empty-state";
 
 /**
  * Seçili ayın kalem dökümü.
@@ -141,9 +142,10 @@ export function BreakdownPanel({
       </header>
 
       {rows.length === 0 ? (
-        <p className="text-muted-foreground px-4 py-6 text-[13px]">
-          Bu ay için kayıt yok.
-        </p>
+        <EmptyState
+          title="Bu ay için kayıt yok"
+          description="Gelir ya da gider eklediğinde ayın dökümü burada çıkar."
+        />
       ) : (
         <div className="divide-hairline">
           {rows.map(({ g, negative }) => (

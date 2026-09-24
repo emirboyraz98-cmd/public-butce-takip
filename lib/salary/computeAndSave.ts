@@ -155,30 +155,30 @@ async function computeFixedMonth(
 async function computeVariableMonth(userId: string, month: string) {
   const monthEnd = monthEndUtc(month);
 
-  const [baseSalaryRates, referenceFxRates, holidays, exceptions] =
-    await Promise.all([
-      prisma.baseSalaryRate.findMany({ where: { userId } }),
-      prisma.referenceFxRate.findMany({ where: { userId } }),
-      prisma.publicHoliday.findMany(),
-      prisma.salaryDayException.findMany({ where: { userId } }),
-    ]);
+  /*
+   * Resmi tatil listesi burada okunmuyor: tatil/pazar çözümü gün
+   * İŞARETLENİRKEN yapılıyor (bkz. dayTypeForMark) ve kayıtta çözülmüş
+   * tip duruyor. Hesap anında yeniden okumak boş bir sorgu demekti.
+   */
+  const [baseSalaryRates, referenceFxRates, exceptions] = await Promise.all([
+    prisma.baseSalaryRate.findMany({ where: { userId } }),
+    prisma.referenceFxRate.findMany({ where: { userId } }),
+    prisma.salaryDayException.findMany({ where: { userId } }),
+  ]);
 
-  const holidayDateKeys = new Set(holidays.map((h) => toDateKey(h.date)));
   const dayExceptions: DayExceptionMap = new Map(
     exceptions.map((e) => [toDateKey(e.date), e.dayType])
   );
 
   const nominal = computeMonthNominal(
     month,
-    // Aralık yok: gün tipleri artık yalnızca takvimde işaretlenen günlerden
-    // geliyor. İşaretsiz gün hiçbir tipe girmez ve maaşa katılmaz.
-    [],
     baseSalaryRates.map((r) => ({
       amount: r.amount.toString(),
       effectiveFrom: r.effectiveFrom,
       effectiveTo: r.effectiveTo,
     })),
-    holidayDateKeys,
+    // Gün tipleri yalnızca takvimde işaretlenen günlerden geliyor;
+    // işaretsiz gün hiçbir tipe girmez ve maaşa katılmaz.
     dayExceptions
   );
 

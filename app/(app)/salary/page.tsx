@@ -146,7 +146,6 @@ export default async function SalaryPage() {
     latest?.mode === "VARIABLE"
       ? buildMonthCalendar({
           month: latest.month,
-          periods: [],
           holidayDateKeys,
           dayExceptions,
         })

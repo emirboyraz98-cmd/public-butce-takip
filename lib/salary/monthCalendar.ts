@@ -9,7 +9,6 @@ import {
   classifyDay,
   toDateKey,
   type DayExceptionMap,
-  type WorkPeriodLike,
 } from "./holidayCalendar";
 
 /**
@@ -62,12 +61,10 @@ function mondayFirstIndex(date: Date): number {
 
 export function buildMonthCalendar({
   month,
-  periods,
   holidayDateKeys,
   dayExceptions,
 }: {
   month: string;
-  periods: WorkPeriodLike[];
   holidayDateKeys: ReadonlySet<string>;
   dayExceptions?: DayExceptionMap;
 }): MonthCalendar {
@@ -84,7 +81,7 @@ export function buildMonthCalendar({
 
   const days = dates.map((date): CalendarDay => {
     const key = toDateKey(date);
-    const dayType = classifyDay(date, periods, holidayDateKeys, dayExceptions);
+    const dayType = classifyDay(date, dayExceptions);
 
     if (dayType) counts[dayType] += 1;
     else {

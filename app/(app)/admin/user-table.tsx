@@ -15,6 +15,7 @@ import {
 import { ScrollableTable } from "@/components/ui/scrollable-table";
 import { formatDate } from "@/lib/format";
 import { approveUser, disableUser, rejectUser } from "./actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type AdminUserRow = {
   id: string;
@@ -55,7 +56,12 @@ export function AdminUserTable({ users }: { users: AdminUserRow[] }) {
     });
 
   if (users.length === 0) {
-    return <p className="text-muted-foreground text-sm">Henüz üye yok.</p>;
+    return (
+      <EmptyState
+        title="Henüz kayıtlı üye yok"
+        description="Biri kayıt olduğunda burada onay bekler. Onaylanana kadar uygulamaya giremez."
+      />
+    );
   }
 
   return (

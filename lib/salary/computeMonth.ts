@@ -11,7 +11,6 @@ import {
   classifyDay,
   toDateKey,
   type DayExceptionMap,
-  type WorkPeriodLike,
 } from "./holidayCalendar";
 import { findApplicableByPeriod } from "./effectiveRate";
 
@@ -48,9 +47,7 @@ export type MonthComputationResult = {
  */
 export function computeMonthNominal(
   month: string,
-  workPeriods: WorkPeriodLike[],
   baseSalaryRates: BaseSalaryRateLike[],
-  holidayDateKeys: ReadonlySet<string>,
   dayExceptions?: DayExceptionMap
 ): MonthComputationResult {
   const days = daysOfMonthUtc(month);
@@ -65,7 +62,7 @@ export function computeMonthNominal(
   let usdNominalTotal = new Decimal(0);
 
   for (const day of days) {
-    const dayType = classifyDay(day, workPeriods, holidayDateKeys, dayExceptions);
+    const dayType = classifyDay(day, dayExceptions);
     if (!dayType) continue;
 
     const rate = findApplicableByPeriod(day, baseSalaryRates);

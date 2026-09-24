@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
 import { formatMoney, formatMonth } from "@/lib/format";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type BreakdownEntry = {
   /** yyyy-MM-dd */
@@ -131,7 +132,12 @@ export function CategoryBreakdown({
   const total = slices.reduce((sum, s) => sum + s.value, 0);
 
   if (entries.length === 0) {
-    return <p className="text-muted-foreground text-sm">Henüz kayıt yok.</p>;
+    return (
+      <EmptyState
+        title="Dağılımı gösterecek kayıt yok"
+        description="Birkaç gider ekledikten sonra paranın hangi kategorilere gittiğini burada görürsün."
+      />
+    );
   }
 
   return (

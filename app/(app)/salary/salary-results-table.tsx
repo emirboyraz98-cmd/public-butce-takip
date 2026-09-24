@@ -19,6 +19,7 @@ import { formatMoney, formatMonth } from "@/lib/format";
 import { parseDecimalInput } from "@/components/ui/decimal-input";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { setActualPayment } from "./actions";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type SalaryResultRow = {
   id: string;
@@ -208,9 +209,10 @@ export function SalaryReconciliationTable({
 }) {
   if (results.length === 0) {
     return (
-      <p className="text-muted-foreground px-4 py-8 text-center text-[13px]">
-        Henüz hesaplanmış bir ay yok.
-      </p>
+      <EmptyState
+        title="Henüz hesaplanmış bir ay yok"
+        description="Takvimde günleri işaretledikçe o ayın maaşı otomatik hesaplanır ve burada listelenir. Bankaya yatan tutarı da girip karşılaştırabilirsin."
+      />
     );
   }
 

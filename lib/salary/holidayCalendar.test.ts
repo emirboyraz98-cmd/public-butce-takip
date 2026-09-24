@@ -1,178 +1,72 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyDay, type WorkPeriodLike } from "./holidayCalendar";
+import { classifyDay, isSunday, toDateKey } from "./holidayCalendar";
+import { markDay, markRange } from "./marks.testutil";
 
+const d = (iso: string) => new Date(`${iso}T00:00:00Z`);
+
+/*
+ * classifyDay eskiden "çalışma dönemi" aralıklarına bakıp pazar/resmi
+ * tatil çözümünü OKUMA anında yapıyordu. Aralık kavramı kaldırıldı ve
+ * çözüm işaret YAZILIRKEN yapılıyor (bkz. markDays.test.ts); burada kalan
+ * sözleşme çok daha dar: işaretli gün tipini verir, işaretsiz gün maaşa
+ * hiç katılmaz.
+ */
 describe("classifyDay", () => {
-  const workedJan5to11: WorkPeriodLike = {
-    startDate: new Date("2026-01-05T00:00:00Z"),
-    endDate: new Date("2026-01-11T00:00:00Z"),
-    type: "WORKED",
-  };
-  const leaveJan12to13: WorkPeriodLike = {
-    startDate: new Date("2026-01-12T00:00:00Z"),
-    endDate: new Date("2026-01-13T00:00:00Z"),
-    type: "LEAVE",
-  };
-  const periods = [workedJan5to11, leaveJan12to13];
-  const holidays = new Set(["2026-01-01"]);
-
-  it("returns null for a day outside any period", () => {
-    expect(classifyDay(new Date("2026-01-20T00:00:00Z"), periods, holidays)).toBeNull();
+  it("işaretsiz gün null döner — maaşa katılmaz", () => {
+    expect(classifyDay(d("2026-01-05"), new Map())).toBeNull();
   });
 
-  it("classifies a Sunday inside a WORKED period as SUNDAY", () => {
-    // 2026-01-11 is a Sunday
-    expect(
-      classifyDay(new Date("2026-01-11T00:00:00Z"), periods, holidays)
-    ).toBe("SUNDAY");
+  it("işaret hiç verilmediğinde de null döner", () => {
+    expect(classifyDay(d("2026-01-05"))).toBeNull();
   });
 
-  it("classifies a weekday inside a WORKED period as NORMAL", () => {
-    expect(
-      classifyDay(new Date("2026-01-05T00:00:00Z"), periods, holidays)
-    ).toBe("NORMAL");
+  it("işaretli günün tipini verir", () => {
+    const marks = markDay("2026-01-05", "NORMAL");
+    expect(classifyDay(d("2026-01-05"), marks)).toBe("NORMAL");
   });
 
-  it("classifies a day inside a LEAVE period as LEAVE, even on a Sunday/holiday", () => {
-    expect(
-      classifyDay(new Date("2026-01-12T00:00:00Z"), periods, holidays)
-    ).toBe("LEAVE");
+  it("başka günlerin işareti o güne sızmaz", () => {
+    const marks = markDay("2026-01-05", "LEAVE");
+    expect(classifyDay(d("2026-01-06"), marks)).toBeNull();
   });
 
-  it("classifies a public holiday inside a WORKED period as PUBLIC_HOLIDAY, overriding weekday", () => {
-    const workedIncludingHoliday: WorkPeriodLike = {
-      startDate: new Date("2025-12-30T00:00:00Z"),
-      endDate: new Date("2026-01-02T00:00:00Z"),
-      type: "WORKED",
-    };
-    expect(
-      classifyDay(
-        new Date("2026-01-01T00:00:00Z"),
-        [workedIncludingHoliday],
-        holidays
-      )
-    ).toBe("PUBLIC_HOLIDAY");
+  it("aralık işaretlendiğinde pazar pazar kalır", () => {
+    // 5–11 Ocak 2026 tam bir hafta: içinde tek bir pazar (11 Ocak) var.
+    const marks = markRange("2026-01-05", "2026-01-11", "WORKED");
+    expect(classifyDay(d("2026-01-11"), marks)).toBe("SUNDAY");
+    expect(classifyDay(d("2026-01-06"), marks)).toBe("NORMAL");
   });
 
-  it("resmi tatile denk gelen pazarda PAZAR kazanır (daha yüksek ücret)", () => {
-    // 2026-08-30 Zafer Bayramı ve aynı zamanda pazar. Pazar 22.5, resmi
-    // tatil 18.75 ödüyor; çakıştığında yüksek olan uygulanmalı.
-    const worked: WorkPeriodLike = {
-      startDate: new Date("2026-08-24T00:00:00Z"),
-      endDate: new Date("2026-08-31T00:00:00Z"),
-      type: "WORKED",
-    };
-    expect(
-      classifyDay(
-        new Date("2026-08-30T00:00:00Z"),
-        [worked],
-        new Set(["2026-08-30"])
-      )
-    ).toBe("SUNDAY");
+  it("aralık izin işaretlenirse pazar da izin olur", () => {
+    const marks = markRange("2026-01-05", "2026-01-11", "LEAVE");
+    expect(classifyDay(d("2026-01-11"), marks)).toBe("LEAVE");
   });
 
-  it("LEAVE takes priority over holiday classification", () => {
-    const leaveIncludingHoliday: WorkPeriodLike = {
-      startDate: new Date("2025-12-31T00:00:00Z"),
-      endDate: new Date("2026-01-02T00:00:00Z"),
-      type: "LEAVE",
-    };
-    expect(
-      classifyDay(
-        new Date("2026-01-01T00:00:00Z"),
-        [leaveIncludingHoliday],
-        holidays
-      )
-    ).toBe("LEAVE");
+  it("çalışılan aralıktaki resmi tatil tatil ücretine girer", () => {
+    const marks = markRange(
+      "2026-01-01",
+      "2026-01-03",
+      "WORKED",
+      new Set(["2026-01-01"])
+    );
+    expect(classifyDay(d("2026-01-01"), marks)).toBe("PUBLIC_HOLIDAY");
+  });
+
+  it("elle konan tip, aralıktan gelen tipi ezer", () => {
+    const marks = markRange("2026-01-05", "2026-01-11", "WORKED");
+    markDay("2026-01-06", "LEAVE", marks);
+    expect(classifyDay(d("2026-01-06"), marks)).toBe("LEAVE");
   });
 });
 
-describe("classifyDay — gün istisnaları", () => {
-  const worked: WorkPeriodLike = {
-    startDate: new Date("2026-08-01T00:00:00Z"),
-    endDate: new Date("2026-08-31T00:00:00Z"),
-    type: "WORKED",
-  };
-  const leave: WorkPeriodLike = {
-    startDate: new Date("2026-08-01T00:00:00Z"),
-    endDate: new Date("2026-08-31T00:00:00Z"),
-    type: "LEAVE",
-  };
-  const noHolidays = new Set<string>();
-
-  it("istisna, dönemin türünü geçersiz kılar", () => {
-    // Bütün ay çalışıldı, ama 5 ağustos aslında izinliymiş.
-    expect(
-      classifyDay(
-        new Date("2026-08-05T00:00:00Z"),
-        [worked],
-        noHolidays,
-        new Map([["2026-08-05", "LEAVE" as const]])
-      )
-    ).toBe("LEAVE");
+describe("yardımcılar", () => {
+  it("pazarı UTC'den tanır", () => {
+    expect(isSunday(d("2026-01-11"))).toBe(true);
+    expect(isSunday(d("2026-01-12"))).toBe(false);
   });
 
-  it("istisna, izin döneminde de çalışır (ters yön)", () => {
-    expect(
-      classifyDay(
-        new Date("2026-08-05T00:00:00Z"),
-        [leave],
-        noHolidays,
-        new Map([["2026-08-05", "NORMAL" as const]])
-      )
-    ).toBe("NORMAL");
-  });
-
-  it("istisna, pazar ve resmi tatilden de önce gelir", () => {
-    // 2026-08-30 hem pazar hem Zafer Bayramı; istisna ikisini de yener.
-    expect(
-      classifyDay(
-        new Date("2026-08-30T00:00:00Z"),
-        [worked],
-        new Set(["2026-08-30"]),
-        new Map([["2026-08-30", "NORMAL" as const]])
-      )
-    ).toBe("NORMAL");
-  });
-
-  it("başka günlerin istisnası o güne sızmaz", () => {
-    expect(
-      classifyDay(
-        new Date("2026-08-06T00:00:00Z"),
-        [worked],
-        noHolidays,
-        new Map([["2026-08-05", "LEAVE" as const]])
-      )
-    ).toBe("NORMAL");
-  });
-
-  it("kapsamsız güne konan istisna o günü maaşa KATAR", () => {
-    // Hiçbir döneme girmemiş bir günü takvimden düzeltebilmek asıl kullanım
-    // senaryosu: "bu günü yanlışlıkla çalışıldıya koymamışım".
-    expect(
-      classifyDay(
-        new Date("2026-08-05T00:00:00Z"),
-        [],
-        noHolidays,
-        new Map([["2026-08-05", "NORMAL" as const]])
-      )
-    ).toBe("NORMAL");
-  });
-
-  it("istisnası olmayan kapsamsız gün yine hesaba girmez", () => {
-    expect(
-      classifyDay(
-        new Date("2026-08-06T00:00:00Z"),
-        [],
-        noHolidays,
-        new Map([["2026-08-05", "NORMAL" as const]])
-      )
-    ).toBeNull();
-  });
-
-  it("istisna verilmediğinde davranış değişmez", () => {
-    expect(
-      classifyDay(new Date("2026-08-05T00:00:00Z"), [worked], noHolidays)
-    ).toBe("NORMAL");
+  it("tarih anahtarını yerel saatten bağımsız üretir", () => {
+    expect(toDateKey(d("2026-01-11"))).toBe("2026-01-11");
   });
 });
