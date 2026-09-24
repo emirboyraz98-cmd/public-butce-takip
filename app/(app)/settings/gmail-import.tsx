@@ -181,6 +181,9 @@ function CopyBox({
           </div>
         )}
         <textarea
+          // Salt okunur kod kutusu; ekran okuyucu neyin kopyalanacağını
+          // söyleyebilmeli. Dosya adı varsa kutunun kimliği odur.
+          aria-label={fileName ? `${fileName} içeriği` : "Kopyalanacak metin"}
           readOnly
           rows={rows}
           value={text}
@@ -243,6 +246,9 @@ export function GmailImport({
         <p className="font-medium">1. Anahtar üret</p>
         <div className="flex flex-wrap items-center gap-2">
           <Input
+            // Yer tutucu etiket yerine geçmez: yazmaya başlayınca kaybolur
+            // ve ekran okuyucu alanı adsız okur.
+            aria-label="Anahtar adı (isteğe bağlı)"
             value={label}
             onChange={(e) => setLabel(e.target.value)}
             placeholder="Ad (isteğe bağlı): örn. Telefon Gmail"
@@ -357,8 +363,11 @@ export function GmailImport({
       )}
 
       <div className="space-y-2">
-        <p className="font-medium">2. Gmail etiketinin adı</p>
+        <label className="block font-medium" htmlFor="gmail-label">
+          2. Gmail etiketinin adı
+        </label>
         <Input
+          id="gmail-label"
           value={gmailLabel}
           onChange={(e) => setGmailLabel(e.target.value)}
           className="h-9 w-64"

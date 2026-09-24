@@ -15,12 +15,13 @@ describe("summarizeBudgets", () => {
     expect(rows[0].overage.toString()).toBe("0");
   });
 
-  it("aşımı ayrı verir ve çubuğu 100'de tutar", () => {
+  it("aşımda yüzdeyi 100'de kırpmaz", () => {
     const { rows } = summarizeBudgets([
       { categoryId: "1", name: "Yeme-İçme", limit: d(2000), spent: d(2600) },
     ]);
-    // Çubuk kaba sığmalı; aşım genişlikle değil ayrı bir sayıyla anlatılıyor.
-    expect(rows[0].percent).toBe(100);
+    // 2.600/2.000 = %130. Kırpılsaydı ekranda "%100" yazıp hemen altındaki
+    // "600 TRY aşım" satırıyla çelişirdi.
+    expect(rows[0].percent).toBe(130);
     expect(rows[0].overage.toString()).toBe("600");
     expect(rows[0].remaining.toString()).toBe("0");
   });

@@ -53,6 +53,20 @@ function SliceTooltip({
   );
 }
 
+/**
+ * Grafiğin üstündeki etiket için kısaltılmış ad.
+ *
+ * Uzun adlar ("Kredi: Taşıt kredisi") dilimin dışına taşıp SVG sınırında
+ * kırpılıyordu: ekranda "kredisi %33" yazıyor, baştaki kelimeler yok
+ * oluyordu — yani kırpılmış hâli yanlış bir ad gibi okunuyordu. Kesme
+ * işareti en azından devamı olduğunu söylüyor; tam ad zaten legend'da ve
+ * balonda duruyor.
+ */
+function kisaAd(name: string): string {
+  const SINIR = 16;
+  return name.length <= SINIR ? name : `${name.slice(0, SINIR - 1).trimEnd()}…`;
+}
+
 export function CategoryPieChart({
   slices,
   currency,
@@ -109,7 +123,7 @@ export function CategoryPieChart({
               ? false
               : ({ name, value }) =>
                   share(Number(value)) >= 5
-                    ? `${name} ${formatPercent(share(Number(value)), { digits: 0 })}`
+                    ? `${kisaAd(String(name))} ${formatPercent(share(Number(value)), { digits: 0 })}`
                     : ""
           }
           labelLine={false}

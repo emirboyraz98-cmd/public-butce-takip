@@ -78,7 +78,15 @@ export function BaseSalaryRateTable({ rows }: { rows: BaseSalaryRateRow[] }) {
               </TableCell>
               <TableCell>{formatMoney(row.amount, row.currency)}</TableCell>
               <TableCell className="text-right space-x-1">
-                <Button variant="ghost" size="sm" onClick={() => setEditingId(row.id)}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  // Yalnızca ikon taşıyor: erişilebilir adı olmadan ekran
+                  // okuyucuda adsız bir düğme olarak okunuyordu.
+                  aria-label="Düzenle"
+                  title="Düzenle"
+                  onClick={() => setEditingId(row.id)}
+                >
                   <PencilIcon className="size-3.5" />
                 </Button>
                 <Button

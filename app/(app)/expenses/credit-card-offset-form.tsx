@@ -91,8 +91,12 @@ export function CreditCardStatementDayForm({ day }: { day: number }) {
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-sm font-medium">Hesap kesim günü:</span>
+      {/* <span> etiket değil: alanla bağı yok, ekran okuyucu adsız okurdu. */}
+      <label className="text-sm font-medium" htmlFor="card-cut-day">
+        Hesap kesim günü:
+      </label>
       <Input
+        id="card-cut-day"
         type="number"
         min={1}
         max={28}

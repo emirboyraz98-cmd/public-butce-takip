@@ -45,14 +45,20 @@ export type BudgetSummary = {
 };
 
 /**
- * Yüzde hesabı sınır sıfırken tanımsız: 0 TL bütçeye 100 TL harcamak
- * "%sonsuz aşım". Bu durumda çubuk dolu kabul edilir (100) — sıfır bütçeye
- * yapılan her harcama tam aşımdır ve bunu 0 göstermek yanlış olurdu.
+ * Sınırın yüzde kaçının harcandığı. Aşımda 100'ü GEÇER.
+ *
+ * Eskiden 100'de kırpılıyordu ve ekranda 2.200/2.000 harcanan bir kategori
+ * "%100" yazıyordu; hemen altındaki "200 TRY aşım" satırıyla çelişiyordu.
+ * Kırpma çubuk içindi, ama çubuk zaten kendi genişliğini spent/limit'ten
+ * hesaplıyor (bkz. budget-rows Bar) — yani kırpmanın tek etkisi sayıyı
+ * yanlış göstermekti.
+ *
+ * Sınır sıfırken oran tanımsız: 0 TL bütçeye 450 TL harcamak "%sonsuz".
+ * 100 dönülüyor; 0 demek "hiç harcanmadı" olurdu ve daha yanıltıcıydı.
  */
 function percentOf(spent: Decimal, limit: Decimal): number {
   if (limit.isZero()) return spent.greaterThan(0) ? 100 : 0;
-  const raw = spent.div(limit).times(100).toNumber();
-  return Math.max(0, Math.min(100, raw));
+  return Math.max(0, spent.div(limit).times(100).toNumber());
 }
 
 export function summarizeBudgets(
