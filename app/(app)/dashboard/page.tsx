@@ -14,7 +14,6 @@ import { computeHoldingPL } from "@/lib/investments/calculations";
 import { derivePositions, openPositions } from "@/lib/investments/positions";
 import { monthlyInvestmentFlows } from "@/lib/investments/cashFlow";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
-import { SetupChecklist } from "./setup-checklist";
 import {
   cashAmountForMonth,
   statementTotalsByCurrency,
@@ -106,8 +105,6 @@ export default async function DashboardPage({
     loans,
     cardPayments,
     salaryResults,
-    baseSalaryRateCount,
-    budgetedCategoryCount,
     fxRates,
   ] =
     await Promise.all([
@@ -121,12 +118,6 @@ export default async function DashboardPage({
       }),
       prisma.creditCardStatementPayment.findMany({ where: { userId } }),
       prisma.monthlySalaryResult.findMany({ where: { userId } }),
-      // Kurulum listesi için: yalnızca "var mı" sorusu, kayıtların kendisi
-      // gerekmiyor.
-      prisma.baseSalaryRate.count({ where: { userId } }),
-      prisma.expenseCategory.count({
-        where: { userId, monthlyLimit: { not: null } },
-      }),
       // Kur kaynağına ulaşılamazsa (ve cache de boşsa) sayfanın tamamen
       // çökmesindense çevrim yapılmadan devam edilir; tutarlar karma olur ve
       // arayüzde uyarı gösterilir.
@@ -690,16 +681,6 @@ export default async function DashboardPage({
     </>
   );
 
-  /*
-   * Kurulum listesi, üç adımın hepsi tamamlanana kadar duruyor. Boş bir
-   * hesapta Genel Bakış sıfırlarla dolu kutular gösteriyordu ve hangi
-   * sekmeye önce gidileceği belli değildi.
-   */
-  const setupDone =
-    baseSalaryRateCount > 0 &&
-    incomeEntries.length + expenses.length > 0 &&
-    budgetedCategoryCount > 0;
-
   return (
     <div className="space-y-4">
       <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
@@ -713,14 +694,6 @@ export default async function DashboardPage({
         </div>
         <DashboardFilters from={from} to={to} />
       </header>
-
-      {!setupDone && (
-        <SetupChecklist
-          hasSalaryRate={baseSalaryRateCount > 0}
-          hasRecord={incomeEntries.length + expenses.length > 0}
-          hasBudget={budgetedCategoryCount > 0}
-        />
-      )}
 
       {fxAffectsPortfolio && (
         <div className="border-destructive bg-accent text-accent-foreground border px-4 py-3">
