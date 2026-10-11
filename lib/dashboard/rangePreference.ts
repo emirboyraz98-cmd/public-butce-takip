@@ -20,26 +20,41 @@ function isValidMonth(value: string): boolean {
 
 export type MonthRangePreference = { from: string; to: string };
 
-/** Varsayılan pencerenin uzunluğu: içinde bulunulan ay dahil son 6 ay. */
-export const DEFAULT_RANGE_MONTHS = 6;
+/**
+ * Varsayılan pencere: içinde bulunulan ay dahil 3 ay geri, 3 ay ileri.
+ *
+ * `BACK = 2` üç ay demek, çünkü içinde bulunulan ay da sayılıyor —
+ * arayüzdeki "Son 3 ay" düğmesi de aynı hesapla çalışıyor. İkisi aynı
+ * olduğu için sayfa ilk açıldığında "+3 ay" düğmesi seçili görünür;
+ * farklı olsalardı hiçbir düğme vurgulanmaz, aralık nereden geldiği
+ * belirsiz dururdu.
+ */
+export const DEFAULT_RANGE_BACK_MONTHS = 2;
+export const DEFAULT_RANGE_FORWARD_MONTHS = 3;
 
 /**
- * Hiçbir seçim yokken gösterilecek aralık: bugünden geriye son 6 ay.
+ * Hiçbir seçim yokken gösterilecek aralık: 3 ay geri + 3 ay ileri.
+ *
+ * Eskiden yalnızca geriye bakıyordu (son 6 ay). Oysa uygulamanın anlattığı
+ * şeyin yarısı ileriye dönük: kredi taksitleri, kart ekstreleri ve
+ * tekrarlayan giderler gelecek aylara yazılıyor. Varsayılan geçmişle
+ * sınırlıyken "önümüzdeki aylarda ne çıkacak" sorusu ancak düğmeye
+ * basılırsa görünüyordu.
  *
  * Sabit tarihler değil, `now`'a göre kayan bir penceredir: kasımda açılınca
- * haziran–kasım gelir. Bu yüzden seçim de kalıcı saklanmaz — kalıcı olsaydı
- * ağustosta seçilen mart–ağustos kasımda da açılır, son üç ay görünmezdi.
+ * eylül–şubat gelir. Bu yüzden seçim de kalıcı saklanmaz — kalıcı olsaydı
+ * ağustosta seçilen aralık kasımda da açılır, pencere geride kalırdı.
  */
 export function defaultRange(now: Date): MonthRangePreference {
   const year = now.getFullYear();
   const month = now.getMonth();
   const asMonth = (y: number, m: number) =>
-    // Date.UTC ay taşmasını kendi çözer (ocakta -5 ay -> önceki yılın ağustosu).
+    // Date.UTC ay taşmasını kendi çözer (ocakta -2 ay -> önceki yılın kasımı).
     new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7);
 
   return {
-    from: asMonth(year, month - (DEFAULT_RANGE_MONTHS - 1)),
-    to: asMonth(year, month),
+    from: asMonth(year, month - DEFAULT_RANGE_BACK_MONTHS),
+    to: asMonth(year, month + DEFAULT_RANGE_FORWARD_MONTHS),
   };
 }
 

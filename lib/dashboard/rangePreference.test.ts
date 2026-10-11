@@ -73,35 +73,53 @@ describe("parseRange — geçersiz içerik", () => {
   });
 });
 
-describe("defaultRange — takvimle birlikte kayar", () => {
-  it("ağustosta mart–ağustos verir", () => {
+describe("defaultRange — 3 ay geri, 3 ay ileri; takvimle birlikte kayar", () => {
+  it("ağustosta haziran–kasım verir", () => {
+    // İçinde bulunulan ay geri tarafa dahil: haziran, temmuz, ağustos.
     expect(defaultRange(new Date("2026-08-11T12:00:00"))).toEqual({
-      from: "2026-03",
-      to: "2026-08",
-    });
-  });
-
-  it("kasımda haziran–kasım verir (pencere sabitlenmez)", () => {
-    // Kullanıcının sorduğu senaryo: aylar ilerleyince aralık da ilerlemeli.
-    expect(defaultRange(new Date("2026-11-02T12:00:00"))).toEqual({
       from: "2026-06",
       to: "2026-11",
     });
   });
 
-  it("yıl başında bir önceki yıla taşar", () => {
-    expect(defaultRange(new Date("2026-01-15T12:00:00"))).toEqual({
-      from: "2025-08",
-      to: "2026-01",
+  it("kasımda eylül–şubat verir (pencere sabitlenmez)", () => {
+    // Aylar ilerleyince aralık da ilerlemeli.
+    expect(defaultRange(new Date("2026-11-02T12:00:00"))).toEqual({
+      from: "2026-09",
+      to: "2027-02",
     });
   });
 
-  it("ayın son gününde de aynı ayı verir", () => {
+  it("yıl başında geriye doğru bir önceki yıla taşar", () => {
+    expect(defaultRange(new Date("2026-01-15T12:00:00"))).toEqual({
+      from: "2025-11",
+      to: "2026-04",
+    });
+  });
+
+  it("yıl sonunda ileriye doğru sonraki yıla taşar", () => {
+    expect(defaultRange(new Date("2026-12-10T12:00:00"))).toEqual({
+      from: "2026-10",
+      to: "2027-03",
+    });
+  });
+
+  it("ayın son gününde de aynı ayı merkez alır", () => {
     // Yerel saatte ay sonu, UTC'ye çevrilince sonraki aya kaymamalı.
     expect(defaultRange(new Date("2026-03-31T23:30:00"))).toEqual({
-      from: "2025-10",
-      to: "2026-03",
+      from: "2026-01",
+      to: "2026-06",
     });
+  });
+
+  it("içinde bulunulan ay her zaman pencerenin içinde", () => {
+    for (let m = 0; m < 12; m++) {
+      const now = new Date(2026, m, 15);
+      const { from, to } = defaultRange(now);
+      const simdi = `2026-${String(m + 1).padStart(2, "0")}`;
+      expect(from <= simdi).toBe(true);
+      expect(to >= simdi).toBe(true);
+    }
   });
 
   it("her zaman 6 aylık pencere üretir", () => {
