@@ -14,6 +14,7 @@ import { computeHoldingPL } from "@/lib/investments/calculations";
 import { derivePositions, openPositions } from "@/lib/investments/positions";
 import { monthlyInvestmentFlows } from "@/lib/investments/cashFlow";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
+import { Assistant } from "./assistant";
 import {
   cashAmountForMonth,
   statementTotalsByCurrency,
@@ -694,6 +695,8 @@ export default async function DashboardPage({
         </div>
         <DashboardFilters from={from} to={to} />
       </header>
+
+      <Assistant baseCurrency={baseCurrency} />
 
       {fxAffectsPortfolio && (
         <div className="border-destructive bg-accent text-accent-foreground border px-4 py-3">
