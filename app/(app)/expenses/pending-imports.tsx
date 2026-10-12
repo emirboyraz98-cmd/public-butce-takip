@@ -59,6 +59,83 @@ type Draft = { categoryId: string; paymentMonth: string; amount: string };
  * eşleştirilmek zorunda. Onay adımı olmasa bunlar sessizce yanlış veri
  * olarak grafiklere karışırdı.
  */
+type Kategori = { id: string; name: string };
+
+/** Kategori seçimi. Telefonda tam genişlik, tabloda dar sütun. */
+function KategoriSecici({
+  value,
+  categories,
+  onChange,
+  className,
+}: {
+  value: string;
+  categories: Kategori[];
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={className}>
+        <SelectValue placeholder="Seç" />
+      </SelectTrigger>
+      <SelectContent>
+        {categories.map((c) => (
+          <SelectItem key={c.id} value={c.id}>
+            {c.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function EkstreAyiSecici({
+  value,
+  date,
+  onChange,
+  className,
+}: {
+  value: string;
+  date: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger className={className}>
+        <SelectValue placeholder="Seç" />
+      </SelectTrigger>
+      <SelectContent>
+        {paymentMonthOptions(date).map((m) => (
+          <SelectItem key={m} value={m}>
+            {formatMonth(m)}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+/** Harcamanın kimliği: işyeri, kart ve varsa iptal işareti. */
+function Kimlik({
+  row,
+  isCancellation,
+}: {
+  row: PendingImportRow;
+  isCancellation: boolean;
+}) {
+  return (
+    <>
+      <span className="block">{row.sector}</span>
+      <span className="text-muted-foreground text-xs">
+        kart {row.cardLast4}
+        {row.installmentCount > 1 && ` · ${row.installmentCount} taksit`}
+        {isCancellation && <strong className="text-destructive"> · İPTAL</strong>}
+      </span>
+    </>
+  );
+}
+
 export function PendingImports({
   rows,
   categories,
@@ -123,6 +200,138 @@ export function PendingImports({
         )}
       </div>
 
+      {/*
+        Telefonda tablo kullanılamıyordu: altı sütun 390px'e sığmıyor,
+        Kategori'den sonrası yatay kaydırmanın arkasında kalıyordu — yani
+        sekmenin bütün işi (kategoriyi seç, ekstre ayını doğrula, onayla)
+        ekran dışındaydı. Satırlar kart oluyor; sütun değil, sıra.
+      */}
+      <ul className="divide-hairline border-border border xl:hidden">
+        {rows.map((row) => {
+          const draft = draftFor(row);
+          const isCancellation = row.kind === "CANCELLATION";
+          const converted =
+            row.rawCurrency !== (row.currency ?? row.rawCurrency);
+
+          return (
+            <li key={row.id} className="space-y-3 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-muted-foreground text-[12px]">
+                    {formatDate(row.date)}
+                  </p>
+                  <p className="mt-0.5 text-[13px]">
+                    <Kimlik row={row} isCancellation={isCancellation} />
+                  </p>
+                </div>
+                <div className="flex-none text-right">
+                  {row.amount === null ? (
+                    <span className="text-destructive text-[12px]">
+                      kur alınamadı
+                    </span>
+                  ) : (
+                    <>
+                      <p className="text-[15px] font-bold tabular-nums">
+                        {formatMoney(
+                          Number(row.amount),
+                          row.currency ?? undefined
+                        )}
+                      </p>
+                      {converted && (
+                        <p className="text-muted-foreground text-[12px] tabular-nums">
+                          {row.rawAmount} {row.rawCurrency}
+                        </p>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {row.amount === null && (
+                <div className="grid gap-1.5">
+                  <label
+                    className="text-[12px] font-medium"
+                    htmlFor={`tutar-${row.id}`}
+                  >
+                    TL karşılığı
+                  </label>
+                  <Input
+                    id={`tutar-${row.id}`}
+                    value={draft.amount}
+                    onChange={(e) =>
+                      patch(row.id, row, { amount: e.target.value })
+                    }
+                    placeholder={`${row.rawAmount} ${row.rawCurrency}`}
+                    inputMode="decimal"
+                  />
+                </div>
+              )}
+
+              {!isCancellation && (
+                <div className="grid gap-2">
+                  <div className="grid gap-1.5">
+                    <label
+                      className="text-[12px] font-medium"
+                      htmlFor={`kategori-${row.id}`}
+                    >
+                      Kategori
+                    </label>
+                    <KategoriSecici
+                      value={draft.categoryId}
+                      categories={categories}
+                      onChange={(v) => patch(row.id, row, { categoryId: v })}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <label
+                      className="text-[12px] font-medium"
+                      htmlFor={`ekstre-${row.id}`}
+                    >
+                      Ekstre ayı
+                    </label>
+                    <EkstreAyiSecici
+                      value={draft.paymentMonth}
+                      date={row.date}
+                      onChange={(v) => patch(row.id, row, { paymentMonth: v })}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  disabled={isPending}
+                  onClick={() =>
+                    run(() =>
+                      isCancellation
+                        ? applyCancellation(row.id)
+                        : approveImport(row.id, {
+                            categoryId: draft.categoryId,
+                            paymentMonth: draft.paymentMonth,
+                            amount: draft.amount || undefined,
+                          })
+                    )
+                  }
+                >
+                  {isCancellation ? "İptali uygula" : "Onayla"}
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={isPending}
+                  onClick={() => run(() => rejectImport(row.id))}
+                >
+                  Sil
+                </Button>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="hidden xl:block">
       <ScrollableTable rowCount={rows.length}>
         <TableHeader>
           <TableRow>
@@ -148,15 +357,7 @@ export function PendingImports({
                 </TableCell>
 
                 <TableCell>
-                  <span className="block">{row.sector}</span>
-                  <span className="text-muted-foreground text-xs">
-                    kart {row.cardLast4}
-                    {row.installmentCount > 1 &&
-                      ` · ${row.installmentCount} taksit`}
-                    {isCancellation && (
-                      <strong className="text-destructive"> · İPTAL</strong>
-                    )}
-                  </span>
+                  <Kimlik row={row} isCancellation={isCancellation} />
                 </TableCell>
 
                 <TableCell>
@@ -195,23 +396,12 @@ export function PendingImports({
                   {isCancellation ? (
                     <span className="text-muted-foreground text-xs">—</span>
                   ) : (
-                    <Select
+                    <KategoriSecici
                       value={draft.categoryId}
-                      onValueChange={(v) =>
-                        patch(row.id, row, { categoryId: v })
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-40">
-                        <SelectValue placeholder="Seç" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {categories.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      categories={categories}
+                      onChange={(v) => patch(row.id, row, { categoryId: v })}
+                      className="h-8 w-40"
+                    />
                   )}
                 </TableCell>
 
@@ -219,23 +409,12 @@ export function PendingImports({
                   {isCancellation ? (
                     <span className="text-muted-foreground text-xs">—</span>
                   ) : (
-                    <Select
+                    <EkstreAyiSecici
                       value={draft.paymentMonth}
-                      onValueChange={(v) =>
-                        patch(row.id, row, { paymentMonth: v })
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-32">
-                        <SelectValue placeholder="Seç" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {paymentMonthOptions(row.date).map((m) => (
-                          <SelectItem key={m} value={m}>
-                            {formatMonth(m)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      date={row.date}
+                      onChange={(v) => patch(row.id, row, { paymentMonth: v })}
+                      className="h-8 w-32"
+                    />
                   )}
                 </TableCell>
 
@@ -273,6 +452,7 @@ export function PendingImports({
           })}
         </TableBody>
       </ScrollableTable>
+      </div>
     </div>
   );
 }
