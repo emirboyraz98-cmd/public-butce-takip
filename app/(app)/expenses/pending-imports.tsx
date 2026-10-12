@@ -48,7 +48,13 @@ export type PendingImportRow = {
   paymentMonth: string | null;
 };
 
-type Draft = { categoryId: string; paymentMonth: string; amount: string };
+type Draft = {
+  categoryId: string;
+  paymentMonth: string;
+  amount: string;
+  /** Kullanıcının kendi açıklaması; onayda kaydın künyesinin önüne yazılır. */
+  note: string;
+};
 
 /**
  * Mailden gelen kayıtların gidere dönüşmeden önce beklediği yer.
@@ -116,6 +122,36 @@ function EkstreAyiSecici({
   );
 }
 
+/**
+ * Kullanıcının kendi açıklaması.
+ *
+ * Onaylanan gidere yazılan not iki parçadan oluşuyor: buraya yazılan
+ * açıklama ve kaydın künyesi (işyeri · kart). Künye her hâlükârda
+ * korunuyor; kaydın nereden geldiğinin tek izi o.
+ */
+function NotAlani({
+  id,
+  value,
+  onChange,
+  className,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  className?: string;
+}) {
+  return (
+    <Input
+      id={id}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder="örn. kahvaltı"
+      maxLength={120}
+      className={className}
+    />
+  );
+}
+
 /** Harcamanın kimliği: işyeri, kart ve varsa iptal işareti. */
 function Kimlik({
   row,
@@ -152,6 +188,7 @@ export function PendingImports({
       categoryId: row.suggestedCategoryId ?? "",
       paymentMonth: row.paymentMonth ?? "",
       amount: row.amount ?? "",
+      note: "",
     };
 
   const patch = (id: string, row: PendingImportRow, next: Partial<Draft>) =>
@@ -297,6 +334,22 @@ export function PendingImports({
                       className="w-full"
                     />
                   </div>
+                  <div className="grid gap-1.5">
+                    <label
+                      className="text-[12px] font-medium"
+                      htmlFor={`not-${row.id}`}
+                    >
+                      Not{" "}
+                      <span className="text-muted-foreground font-normal">
+                        (isteğe bağlı)
+                      </span>
+                    </label>
+                    <NotAlani
+                      id={`not-${row.id}`}
+                      value={draft.note}
+                      onChange={(v) => patch(row.id, row, { note: v })}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -312,6 +365,7 @@ export function PendingImports({
                             categoryId: draft.categoryId,
                             paymentMonth: draft.paymentMonth,
                             amount: draft.amount || undefined,
+                            note: draft.note || undefined,
                           })
                     )
                   }
@@ -358,6 +412,19 @@ export function PendingImports({
 
                 <TableCell>
                   <Kimlik row={row} isCancellation={isCancellation} />
+                  {/*
+                    Not, yeni bir sütun olarak değil işyeri adının altına
+                    konuyor: tablo zaten altı sütunla dar ekranlarda
+                    zorlanıyordu ve not, harcamanın kimliğinin parçası.
+                  */}
+                  {!isCancellation && (
+                    <NotAlani
+                      id={`not-tablo-${row.id}`}
+                      value={draft.note}
+                      onChange={(v) => patch(row.id, row, { note: v })}
+                      className="mt-1 h-7 w-44 text-xs"
+                    />
+                  )}
                 </TableCell>
 
                 <TableCell>
@@ -431,6 +498,7 @@ export function PendingImports({
                               categoryId: draft.categoryId,
                               paymentMonth: draft.paymentMonth,
                               amount: draft.amount || undefined,
+                              note: draft.note || undefined,
                             })
                       )
                     }

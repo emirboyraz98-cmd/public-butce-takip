@@ -59,14 +59,19 @@ export function Tabs({
         aria-label={ariaLabel}
         onKeyDown={onKeyDown}
         /*
-         * Telefonda sekmeler ikinci satıra kırılıyordu ("Bekleyen
-         * aktarımlar" tek başına alt sıraya düşüyor ve sekme şeridi
-         * bozuk görünüyordu). Kırmak yerine yatay kaydırma: şeridin tek
-         * satır olduğu her ekranda okunur kalıyor, sığmadığında da
-         * kaydırılıyor. Kaydırma çubuğu gizli — kenardaki yarım sekme
-         * zaten devamı olduğunu söylüyor.
+         * Telefonda sekmeler ızgaraya giriyor, tek satırda kaydırılmıyor.
+         *
+         * Önce yatay kaydırma denendi ama son sekme ("Bekleyen
+         * aktarımlar") ekranın kenarında yarım kalıyordu: adı okunmuyor,
+         * orada bir şey olduğu da ancak kaydırmayı denerseniz anlaşılıyor.
+         * Dört sekmenin toplam genişliği 390px'in üstünde, yani yazıyı
+         * küçültmek de çözmüyordu.
+         *
+         * İki sütunlu ızgarada dördü de tam görünüyor ve artık satır
+         * kalmıyor. Geniş ekranda alışıldık tek satır alt çizgili şeride
+         * dönüyor.
          */
-        className="border-border flex gap-1 overflow-x-auto border-b [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="grid grid-cols-2 gap-1 sm:border-border sm:flex sm:border-b"
       >
         {items.map((item) => {
           const selected = item.key === active;
@@ -84,17 +89,34 @@ export function Tabs({
               tabIndex={selected ? 0 : -1}
               onClick={() => setActive(item.key)}
               className={cn(
-                "-mb-px min-h-11 shrink-0 border-b-2 px-4 py-2 text-sm font-semibold transition-colors sm:min-h-9",
+                /*
+                 * Telefonda çerçeveli kutu, geniş ekranda alt çizgi.
+                 * Izgarada alt çizgi, üst satırdaki sekmenin altında
+                 * boşlukta asılı kalıyordu; kutu ise uygulamanın başka
+                 * yerlerindeki segment denetimiyle (baz para birimi, dönem
+                 * seçimi) aynı dili konuşuyor.
+                 */
+                "min-h-11 px-3 py-2 text-sm font-semibold transition-colors sm:min-h-9 sm:px-4",
+                "border-border border sm:-mb-px sm:border-0 sm:border-b-2",
                 selected
-                  ? "border-primary text-accent-text"
-                  : "text-muted-foreground hover:text-foreground border-transparent"
+                  ? "bg-primary text-primary-foreground sm:bg-transparent sm:border-primary sm:text-accent-text"
+                  : "text-muted-foreground hover:text-foreground sm:border-transparent"
               )}
             >
               {item.label}
               {item.badge ? (
                 // Rozet seçili olsun olmasın dolu kırmızı: amacı sekmeye
                 // BAKILMADIĞINDA da göze çarpmak.
-                <span className="bg-primary text-primary-foreground ml-1.5 inline-block min-w-5 px-1 text-[11px] font-bold">
+                <span
+                  className={cn(
+                    "ml-1.5 inline-block min-w-5 px-1 text-[11px] font-bold",
+                    // Seçili sekmenin zemini zaten kırmızı; rozet orada
+                    // ters renkte olmalı, yoksa zeminde kayboluyor.
+                    selected
+                      ? "bg-primary-foreground text-primary sm:bg-primary sm:text-primary-foreground"
+                      : "bg-primary text-primary-foreground"
+                  )}
+                >
                   {item.badge}
                 </span>
               ) : null}

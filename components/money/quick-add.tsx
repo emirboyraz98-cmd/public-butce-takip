@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import { createExpense } from "@/app/(app)/expenses/actions";
 import {
@@ -22,6 +23,7 @@ import {
  */
 export function QuickAdd({ categories }: { categories: CategoryOption[] }) {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
 
   /*
    * Klavye kısayolu. Cmd/Ctrl+K tarayıcıda ve editörlerde "ara" anlamına
@@ -63,6 +65,17 @@ export function QuickAdd({ categories }: { categories: CategoryOption[] }) {
   }
 
   if (categories.length === 0) return null;
+
+  /*
+   * Giderler sayfasında çizilmiyor.
+   *
+   * İki sebep var. Birincisi gereksiz: sayfanın kendi "Gider ekle" düğmesi
+   * zaten orada, yüzen düğme aynı işi ikinci kez sunuyor. İkincisi zararlı:
+   * yüzen düğme sabit konumlu, yani içerik altından kayıyor ve "Bekleyen
+   * aktarımlar" sekmesinde not alanının ve Onayla düğmesinin üstüne
+   * biniyor — doldurulacak formu kapatıyordu.
+   */
+  if (pathname.startsWith("/expenses")) return null;
 
   return (
     <>

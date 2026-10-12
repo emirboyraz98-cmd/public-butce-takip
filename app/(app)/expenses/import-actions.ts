@@ -28,9 +28,29 @@ function revalidateAll() {
  * sonradan sahiplik kontrol etmek de olurdu ama koşulu sorguya koymak
  * kontrolü atlamayı imkânsız kılıyor.
  */
+/** Kaydın nereden geldiğini anlatan künye: sektör, kart ve varsa özgün tutar. */
+function kunye(row: {
+  sector: string;
+  cardLast4: string;
+  rawAmount: unknown;
+  rawCurrency: string;
+  currency: string | null;
+}): string {
+  const base = `${row.sector} · kart ${row.cardLast4}`;
+  return row.rawCurrency === (row.currency ?? "TRY")
+    ? base
+    : `${base} · ${row.rawAmount} ${row.rawCurrency}`;
+}
+
 export async function approveImport(
   id: string,
-  input: { categoryId: string; paymentMonth: string; amount?: string }
+  input: {
+    categoryId: string;
+    paymentMonth: string;
+    amount?: string;
+    /** Kullanıcının kendi notu; otomatik künyenin önüne yazılır. */
+    note?: string;
+  }
 ): Promise<ActionState> {
   const userId = await requireUserId();
 
@@ -75,13 +95,23 @@ export async function approveImport(
         kind: "CREDIT_CARD",
         paymentMonth: input.paymentMonth,
         installmentCount: row.installmentCount,
-        // İşyeri adı mailde yok; sektör en yakın bilgi. Yurt dışı
-        // harcamasında özgün tutar da nota giriyor, yoksa TL karşılığını
-        // gören kullanıcı hangi kurun uygulandığını hiç bilemezdi.
-        note:
-          row.rawCurrency === (row.currency ?? "TRY")
-            ? `${row.sector} · kart ${row.cardLast4}`
-            : `${row.sector} · kart ${row.cardLast4} · ${row.rawAmount} ${row.rawCurrency}`,
+        /*
+         * Not iki parçadan oluşuyor: kullanıcının yazdığı açıklama ve
+         * kaydın künyesi.
+         *
+         * İşyeri adı mailde yok; sektör en yakın bilgi. Yurt dışı
+         * harcamasında özgün tutar da nota giriyor, yoksa TL karşılığını
+         * gören kullanıcı hangi kurun uygulandığını hiç bilemezdi. Bu
+         * künye kullanıcı not yazsa da korunuyor: kaydın nereden geldiği
+         * tek kaydı o.
+         *
+         * Kullanıcının notu ÖNDE, çünkü listede okunan ilk şey o ve
+         * aradığı şey de o ("kahvaltı" diye arayacak, "MIGROS" diye değil).
+         */
+        note: [kunye(row), input.note?.trim()]
+          .filter((p): p is string => Boolean(p))
+          .reverse()
+          .join(" · "),
       },
     });
 
