@@ -696,8 +696,6 @@ export default async function DashboardPage({
         <DashboardFilters from={from} to={to} />
       </header>
 
-      <Assistant baseCurrency={baseCurrency} />
-
       {fxAffectsPortfolio && (
         <div className="border-destructive bg-accent text-accent-foreground border px-4 py-3">
           <p className="text-[14px] font-extrabold">
@@ -840,6 +838,14 @@ export default async function DashboardPage({
         currentMonth={currentMonth}
         note={chartNote}
       />
+
+      {/*
+        Soru kutusu en altta: önce özet kutular ve grafik, ardından "bir de
+        şunu sorayım" adımı. Üstteyken sayfanın asıl rakamlarını aşağı
+        itiyordu ve sorulacak soru çoğu zaman grafiğe bakıldıktan sonra
+        aklına geliyor.
+      */}
+      <Assistant baseCurrency={baseCurrency} />
     </div>
   );
 }
