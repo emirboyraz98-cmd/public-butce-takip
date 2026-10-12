@@ -20,9 +20,8 @@ import { createDailyBaseConverter } from "@/lib/fx/dailyBase";
 import {
   formatDate,
   formatMoney,
-  formatMoneyWhole,
   formatPercent,
-  formatSignedWhole,
+  formatSigned,
 } from "@/lib/format";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { Section } from "@/components/ui/section";
@@ -357,9 +356,9 @@ export default async function InvestmentsPage() {
 
   const plTone = (v: Decimal) => (v.isNegative() ? "negative" : "default");
   const money = (v: Decimal) =>
-    formatMoneyWhole(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
+    formatMoney(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
   const signed = (v: Decimal) =>
-    formatSignedWhole(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
+    formatSigned(v.toNumber(), fxUnavailable ? undefined : baseCurrency);
 
   /*
    * Döküm, serbest nakit kutusuyla AYNI olay akışından çıkıyor; ayrı

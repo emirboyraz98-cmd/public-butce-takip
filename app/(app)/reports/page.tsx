@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
 import { monthlyTotals } from "@/lib/cashflow/monthlyTotals";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
-import { formatMoneyWhole, formatMonth, formatPercent } from "@/lib/format";
+import { formatMoney, formatMonth, formatPercent } from "@/lib/format";
 import { MetricChart } from "./metric-chart";
 import { RangeFilters } from "./range-filters";
 import type { SerializedMonth } from "./serialize";
@@ -296,7 +296,7 @@ function buildHighlights(
   );
   out.push({
     title: `En yüksek giderli ay: ${formatMonth(priciest.month)}`,
-    detail: `${formatMoneyWhole(priciest.expenses.toNumber(), currency)} harcandı — veri olan ${withData.length} ay içinde en yükseği.`,
+    detail: `${formatMoney(priciest.expenses.toNumber(), currency)} harcandı — veri olan ${withData.length} ay içinde en yükseği.`,
   });
 
   const best = withData.reduce((a, b) =>
@@ -307,8 +307,8 @@ function buildHighlights(
     title: `En iyi ay: ${formatMonth(best.month)}`,
     detail:
       bestNet.isNegative()
-        ? `Net ${formatMoneyWhole(bestNet.toNumber(), currency)} — aralıktaki bütün aylar açık verdi.`
-        : `Net ${formatMoneyWhole(bestNet.toNumber(), currency)} kaldı.`,
+        ? `Net ${formatMoney(bestNet.toNumber(), currency)} — aralıktaki bütün aylar açık verdi.`
+        : `Net ${formatMoney(bestNet.toNumber(), currency)} kaldı.`,
   });
 
   const deficits = withData.filter((t) => t.expenses.greaterThan(t.income));
@@ -332,7 +332,7 @@ function buildHighlights(
       .toNumber();
     out.push({
       title: `Dönem tasarruf oranı ${formatPercent(rate, { digits: 1 })}`,
-      detail: `${formatMoneyWhole(totalIncome.toNumber(), currency)} gelire karşı ${formatMoneyWhole(totalExpenses.toNumber(), currency)} gider.`,
+      detail: `${formatMoney(totalIncome.toNumber(), currency)} gelire karşı ${formatMoney(totalExpenses.toNumber(), currency)} gider.`,
     });
   }
 

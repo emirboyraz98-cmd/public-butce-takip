@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
 import { summarizeBudgets } from "@/lib/budget/calculations";
 import { appliesToMonth } from "@/lib/cashflow/calculations";
-import { formatMoneyWhole, formatMonth, formatPercent } from "@/lib/format";
+import { formatMoney, formatMonth, formatPercent } from "@/lib/format";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { BudgetRows, type BudgetRow } from "./budget-rows";
@@ -117,7 +117,7 @@ export default async function BudgetsPage({
       <StatStrip columns={3}>
         <Stat
           label={`${formatMonth(month)} bütçesi`}
-          value={formatMoneyWhole(summary.totalLimit.toNumber(), baseCurrency)}
+          value={formatMoney(summary.totalLimit.toNumber(), baseCurrency)}
           caption={`${rows.filter((r) => r.limit !== null).length} kategoride sınır var`}
           info={
             <CalcInfo title="Aylık bütçe nasıl toplanır">
@@ -133,7 +133,7 @@ export default async function BudgetsPage({
         />
         <Stat
           label="Harcanan"
-          value={formatMoneyWhole(summary.totalSpent.toNumber(), baseCurrency)}
+          value={formatMoney(summary.totalSpent.toNumber(), baseCurrency)}
           caption={
             summary.overCount > 0
               ? `${summary.overCount} kategori sınırı aştı`
@@ -155,7 +155,7 @@ export default async function BudgetsPage({
         />
         <Stat
           label={overspent ? "Aşım" : "Kalan"}
-          value={formatMoneyWhole(
+          value={formatMoney(
             Math.abs(summary.totalRemaining.toNumber()),
             baseCurrency
           )}

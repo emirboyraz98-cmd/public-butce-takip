@@ -15,7 +15,7 @@ import {
 import { cn } from "@/lib/utils";
 import {
   formatCompactNumber,
-  formatMoneyWhole,
+  formatMoney,
   formatMonth,
   formatPercent,
 } from "@/lib/format";
@@ -82,7 +82,7 @@ export function MetricChart({
             */}
             {isPercent
               ? formatPercent(metric.summary, { digits: 1 })
-              : formatMoneyWhole(metric.summary, currency)}
+              : formatMoney(metric.summary, currency)}
           </strong>
         </p>
       </div>

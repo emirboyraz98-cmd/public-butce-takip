@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { formatMoneyWhole } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 
 export type ShareRow = { name: string; amount: number };
 
@@ -46,7 +46,7 @@ export function ShareList({
               <div className="flex items-baseline justify-between gap-3 text-[13px]">
                 <span className="truncate">{row.name}</span>
                 <span className="text-muted-foreground flex-none">
-                  {formatMoneyWhole(row.amount, currency)} · %
+                  {formatMoney(row.amount, currency)} · %
                   {Math.round(share)}
                 </span>
               </div>

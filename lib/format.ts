@@ -56,42 +56,22 @@ export function formatQuantity(value: number | string): string {
 }
 
 /**
- * Parasal tutarlar: tam sayılar ondalıksız gösterilir (1.235 gibi), ama
- * kuruşlu bir tutar girildiyse ondalık korunur — 1.234,56'yı "1.235" diye
- * yuvarlamak girilen veriyi yanlış gösterirdi.
+ * Parasal tutarlar: KURUŞ HİÇ GÖSTERİLMEZ, en yakın tam sayıya yuvarlanır.
+ *
+ * Kuruş ekranda bilgi taşımıyordu ama her satırda iki basamak yer kaplıyor,
+ * rakamları birbirine yaklaştırıp sütunları okumayı zorlaştırıyordu.
+ *
+ * Yalnızca GÖSTERİM yuvarlanıyor: kayıtlar kuruşuyla saklanmaya devam
+ * ediyor, formlar kuruş kabul ediyor, dışa aktarma ham değeri yazıyor.
+ * Toplamlar da tam değerlerden hesaplanıp en sonda yuvarlanıyor; yani
+ * yuvarlama hatası birikmiyor. Buna karşılık bir listede tek tek
+ * yuvarlanmış satırların gözle toplamı, yuvarlanmış toplamdan 1-2 birim
+ * sapabilir — ondalığı gizlemenin kaçınılmaz sonucu.
+ *
+ * Birim fiyatlar (`formatPrice`) ve adetler (`formatQuantity`) bunun
+ * dışında: oradaki ondalık kuruş değil, varlığın kendi hassasiyeti.
  */
 export function formatMoney(value: number | string, currency?: string): string {
-  const num = typeof value === "string" ? Number(value) : value;
-  if (!Number.isFinite(num)) return currency ? `— ${currency}` : "—";
-
-  const hasFraction = !Number.isInteger(num);
-  const formatted = new Intl.NumberFormat("tr-TR", {
-    minimumFractionDigits: hasFraction ? 2 : 0,
-    maximumFractionDigits: hasFraction ? 2 : 0,
-  }).format(num);
-
-  return currency ? `${formatted} ${currency}` : formatted;
-}
-
-export function formatSigned(value: number | string, currency?: string): string {
-  const num = typeof value === "string" ? Number(value) : value;
-  const sign = Number.isFinite(num) && num > 0 ? "+" : "";
-  return `${sign}${formatMoney(value, currency)}`;
-}
-
-/**
- * Üst özet kutuları için: kuruş hiç gösterilmez.
- *
- * Bu kutulardaki sayılar girilen bir tutar değil, türetilmiş toplamlar
- * (portföy değeri, kâr/zarar, net nakit akışı). Kuruş bir bilgi taşımıyor
- * ama büyük punto başlıkta yer kaplıyor ve okumayı zorlaştırıyor. Tablolarda
- * `formatMoney` kullanılmaya devam ediyor: orada kuruş kullanıcının kendi
- * girdiği veri, yuvarlamak onu yanlış göstermek olurdu.
- */
-export function formatMoneyWhole(
-  value: number | string,
-  currency?: string
-): string {
   const num = typeof value === "string" ? Number(value) : value;
   if (!Number.isFinite(num)) return currency ? `— ${currency}` : "—";
 
@@ -102,13 +82,11 @@ export function formatMoneyWhole(
   return currency ? `${formatted} ${currency}` : formatted;
 }
 
-export function formatSignedWhole(
-  value: number | string,
-  currency?: string
-): string {
+/** Pozitif tutarın başına artı koyar; eksi zaten işaretin kendisinde. */
+export function formatSigned(value: number | string, currency?: string): string {
   const num = typeof value === "string" ? Number(value) : value;
   const sign = Number.isFinite(num) && num > 0 ? "+" : "";
-  return `${sign}${formatMoneyWhole(value, currency)}`;
+  return `${sign}${formatMoney(value, currency)}`;
 }
 
 /**

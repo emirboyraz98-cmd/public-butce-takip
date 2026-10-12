@@ -37,10 +37,10 @@ import {
   RANGE_COOKIE,
 } from "@/lib/dashboard/rangePreference";
 import {
-  formatMoneyWhole,
+  formatMoney,
   formatMonth,
   formatPercent,
-  formatSignedWhole,
+  formatSigned,
 } from "@/lib/format";
 import { CalcInfo } from "@/components/ui/calc-info";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
@@ -726,7 +726,7 @@ export default async function DashboardPage({
           <>
         <Stat
           label="Portföy değeri"
-          value={formatMoneyWhole(totalMarketValue.toNumber(), baseCurrency)}
+          value={formatMoney(totalMarketValue.toNumber(), baseCurrency)}
           caption="güncel kurla"
           info={
             <CalcInfo title="Portföy Değeri nasıl hesaplanır">
@@ -745,7 +745,7 @@ export default async function DashboardPage({
         />
         <Stat
           label="Açık pozisyon K/Z"
-          value={formatSignedWhole(totalPL.toNumber(), baseCurrency)}
+          value={formatSigned(totalPL.toNumber(), baseCurrency)}
           tone={totalPL.isNegative() ? "negative" : "default"}
           caption={
             totalCost.isZero()
@@ -772,12 +772,12 @@ export default async function DashboardPage({
         )}
         <Stat
           label={`${formatMonth(summaryPoint.month)} net nakit akışı`}
-          value={formatSignedWhole(summaryPoint.net, baseCurrency)}
+          value={formatSigned(summaryPoint.net, baseCurrency)}
           tone={summaryPoint.net < 0 ? "negative" : "default"}
           caption={
             <>
-              gelir {formatMoneyWhole(summaryPoint.income, baseCurrency)} ·
-              gider {formatMoneyWhole(summaryPoint.expenses, baseCurrency)}
+              gelir {formatMoney(summaryPoint.income, baseCurrency)} ·
+              gider {formatMoney(summaryPoint.expenses, baseCurrency)}
               {summaryPoint.projected && " · projeksiyon"}
             </>
           }
@@ -808,7 +808,7 @@ export default async function DashboardPage({
         />
         <Stat
           label="Kart borcu (devreden)"
-          value={formatMoneyWhole(cardCarryDisplay.toNumber(), baseCurrency)}
+          value={formatMoney(cardCarryDisplay.toNumber(), baseCurrency)}
           caption={
             cardCarryDisplay.isZero()
               ? "ekstre tamamen ödenmiş"

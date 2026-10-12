@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { cn } from "@/lib/utils";
-import { formatMoneyWhole, formatMonth } from "@/lib/format";
+import { formatMoney, formatMonth } from "@/lib/format";
 import type { SourceGroup } from "./cashflow-section";
 import { EmptyState } from "@/components/ui/empty-state";
 
@@ -32,8 +32,8 @@ function Row({
   const expandable = group.items.length > 1;
 
   const amount = negative
-    ? `−${formatMoneyWhole(Math.abs(Number(group.total)), currency)}`
-    : formatMoneyWhole(group.total, currency);
+    ? `−${formatMoney(Math.abs(Number(group.total)), currency)}`
+    : formatMoney(group.total, currency);
 
   const header = (
     <>
@@ -93,8 +93,8 @@ function Row({
               <span className="truncate">{item.category}</span>
               <span className="flex-none">
                 {negative
-                  ? `−${formatMoneyWhole(Math.abs(Number(item.amount)), currency)}`
-                  : formatMoneyWhole(item.amount, currency)}
+                  ? `−${formatMoney(Math.abs(Number(item.amount)), currency)}`
+                  : formatMoney(item.amount, currency)}
               </span>
             </li>
           ))}
@@ -171,8 +171,8 @@ export function BreakdownPanel({
             )}
           >
             {net < 0
-              ? `−${formatMoneyWhole(Math.abs(net), currency)}`
-              : `+${formatMoneyWhole(net, currency)}`}
+              ? `−${formatMoney(Math.abs(net), currency)}`
+              : `+${formatMoney(net, currency)}`}
           </span>
         </div>
       )}

@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
-import { formatMoneyWhole } from "@/lib/format";
+import { formatMoney } from "@/lib/format";
 import { Stat, StatStrip } from "@/components/ui/stat-strip";
 import { CalcInfo } from "@/components/ui/calc-info";
 import {
@@ -106,12 +106,12 @@ export default async function IncomePage() {
       <StatStrip columns={3}>
         <Stat
           label="Bu ay"
-          value={formatMoneyWhole(monthTotal, baseCurrency)}
+          value={formatMoney(monthTotal, baseCurrency)}
           caption="maaş hariç"
         />
         <Stat
           label="Aylık düzenli"
-          value={formatMoneyWhole(recurring, baseCurrency)}
+          value={formatMoney(recurring, baseCurrency)}
           caption="tekrarlayan kayıtların toplamı"
           info={
             <CalcInfo title="Aylık düzenli gelir nasıl hesaplanır">
@@ -125,7 +125,7 @@ export default async function IncomePage() {
         />
         <Stat
           label={`${thisMonth.slice(0, 4)} toplamı`}
-          value={formatMoneyWhole(yearTotal, baseCurrency)}
+          value={formatMoney(yearTotal, baseCurrency)}
           caption={`${rows.filter((r) => r.date.startsWith(thisMonth.slice(0, 4))).length} kayıt`}
         />
       </StatStrip>

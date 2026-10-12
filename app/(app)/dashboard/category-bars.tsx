@@ -1,4 +1,4 @@
-import { formatMoneyWhole, formatMonth } from "@/lib/format";
+import { formatMoney, formatMonth } from "@/lib/format";
 
 export type CategoryShare = {
   category: string;
@@ -57,7 +57,7 @@ export function CategoryBars({
           Harcama dağılımı
         </h2>
         <p className="text-muted-foreground mt-0.5 text-[12px]">
-          {formatMonth(month)} · {formatMoneyWhole(total, currency)}
+          {formatMonth(month)} · {formatMoney(total, currency)}
         </p>
       </header>
 
@@ -74,7 +74,7 @@ export function CategoryBars({
                 <div className="flex items-baseline justify-between gap-3 text-[13px]">
                   <span className="truncate">{row.category}</span>
                   <span className="text-muted-foreground flex-none">
-                    {formatMoneyWhole(row.amount, currency)} · %
+                    {formatMoney(row.amount, currency)} · %
                     {Math.round(share)}
                   </span>
                 </div>
