@@ -845,7 +845,7 @@ export default async function DashboardPage({
         itiyordu ve sorulacak soru çoğu zaman grafiğe bakıldıktan sonra
         aklına geliyor.
       */}
-      <Assistant baseCurrency={baseCurrency} />
+      <Assistant />
     </div>
   );
 }

@@ -54,9 +54,11 @@ export default async function AppLayout({
     <div className="flex min-h-svh">
       <Sidebar baseCurrency={user.baseCurrency} />
       <QuickAdd categories={expenseCategories} />
-      {/* Alt kenar boşluğu telefondaki sabit sekme çubuğu içindir; onsuz
-          sayfanın son satırı çubuğun altında kalıyor. */}
-      <main className="min-w-0 flex-1 px-4 py-5 pb-24 sm:px-6 lg:px-8 lg:py-7 lg:pb-8">
+      {/* Alt kenar boşluğu sabit öğeler içindir: telefonda sekme çubuğu ve
+          onun üstündeki "Hızlı ekle" düğmesi (alttan 128px), masaüstünde
+          yalnızca düğme (alttan 72px). Onsuz sayfanın son satırı — Genel
+          Bakış'ta soru kutusunun önerileri — düğmenin altında kalıyordu. */}
+      <main className="min-w-0 flex-1 px-4 py-5 pb-36 sm:px-6 lg:px-8 lg:py-7 lg:pb-24">
         {children}
       </main>
       <MobileNav

@@ -1,46 +1,47 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CalcInfo } from "@/components/ui/calc-info";
-import { formatDate, formatMoney, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { askAssistant, type AssistantResult } from "./assistant-actions";
+import { askAssistant, type AssistantView } from "./assistant-actions";
 
-/** Kutu boşken gösterilen, gerçekten çalışan sorular. */
+/** Kutu boşken gösterilen, tıklanınca sorulan örnekler. */
 const ORNEKLER = [
-  "ayın 13'ünden beri ne kadar harcadım",
-  "bu ay markete ne kadar harcadım",
-  "geçen ay net ne kadar kaldı",
-  "son 3 ayda en çok nereye harcadım",
+  "Bu ay ne kadar harcadım?",
+  "Ayın 1'inden beri markete ne kadar harcadım?",
+  "En çok neye harcadım?",
+  "Geçen aya göre daha mı çok harcadım?",
+  "Bu ay ne kadar biriktirdim?",
+  "Bütçemi aştım mı?",
 ];
-
-const BASLIK: Record<string, string> = {
-  expense: "Gider",
-  income: "Gelir",
-  net: "Net",
-};
 
 /**
  * Genel Bakış'taki soru kutusu.
  *
  * API anahtarı ya da dış servis yok: soru kural tabanlı çözümleniyor ve
- * kullanıcının kendi verisiyle cevaplanıyor (bkz. lib/assistant). Bunun
- * bedeli dar bir soru dili, kazancı ise verinin hiçbir yere gitmemesi ve
- * aynı sorunun her zaman aynı cevabı vermesi.
+ * kullanıcının kendi verisiyle cevaplanıyor (bkz. lib/assistant).
  *
- * Cevap, ANLAŞILAN ARALIĞI açıkça yazıyor. Rakamı tek başına göstermek,
- * kullanıcının soruyu doğru anlaşıldığını varsaymasına yol açardı; yanlış
- * yorumlanmış bir soru da emin bir rakam üretir ve kimse kontrol etmez.
+ * Cevap bir CÜMLE: sorulan şeyin kendisi vurgulu, sorulmayan döküm yok.
+ * Altındaki küçük satır anlaşılan tarih aralığını ve yapılan varsayımı
+ * ("zaman belirtmediğin için bu ayı aldım") söylüyor; yanlış anlaşılan bir
+ * soru böylece ilk bakışta fark ediliyor.
  */
-export function Assistant({ baseCurrency }: { baseCurrency: string }) {
-  const [state, formAction, pending] = useActionState<AssistantResult | null, FormData>(
-    askAssistant,
-    null
-  );
+export function Assistant() {
+  const [state, formAction, pending] = useActionState<AssistantView | null, FormData>(askAssistant, null);
+  // Kontrollü: soru gönderildikten sonra kutuda kalsın ki küçük bir
+  // değişiklikle yeniden sorulabilsin.
+  const [soru, setSoru] = useState("");
+
+  function sor(metin: string) {
+    setSoru(metin);
+    const fd = new FormData();
+    fd.set("question", metin);
+    startTransition(() => formAction(fd));
+  }
 
   return (
     <section className="border-border border">
@@ -48,19 +49,22 @@ export function Assistant({ baseCurrency }: { baseCurrency: string }) {
         <h2 className="t-section">Soru sor</h2>
         <CalcInfo title="Bu nasıl çalışıyor">
           <p>
-            Soru <strong>cihazın dışına çıkmıyor</strong>: yapay zekâ servisi
-            ya da API anahtarı kullanılmıyor. Soru burada çözümlenip senin
-            kendi kayıtlarınla cevaplanıyor.
+            Soru <strong>hiçbir yere gönderilmiyor</strong>: yapay zekâ servisi
+            ya da API anahtarı yok. Soru burada çözümlenip senin kendi
+            kayıtlarınla cevaplanıyor.
           </p>
           <p>
-            Bunun karşılığı dar bir soru dili: tanımadığı bir kalıpta tahmin
-            yürütmek yerine açıkça anlamadığını söyler. Yanlış anlayıp emin
-            bir rakam vermek daha kötü olurdu.
+            Zamanı (&quot;geçen ay&quot;, &quot;ayın 13&apos;ünden beri&quot;,
+            &quot;1-15 ekim&quot;), kategoriyi (&quot;markete&quot;), ödeme
+            yolunu (&quot;kartla&quot;) ya da notta geçen bir sözcüğü
+            (&quot;konser&quot;) yazabilirsin. Zaman yazmazsan bu ayı alır ve
+            bunu söyler.
           </p>
           <p>
-            Rapora <strong>gelir ve gider kayıtların</strong> girer. Kredi
-            taksitleri ve hesaplanan maaş ay bazlı tutulduğu için buraya
-            girmez; onlar Giderler ve Maaş sekmelerinde.
+            <strong>Harcama</strong> gider kayıtların; kredi taksitleri ancak
+            sorulursa girer. <strong>Gelir</strong> gelir kayıtların ile
+            ödendiği aya yazılan maaş. <strong>Birikim</strong> ikisinin farkı,
+            taksitler dahil.
           </p>
         </CalcInfo>
       </header>
@@ -73,151 +77,113 @@ export function Assistant({ baseCurrency }: { baseCurrency: string }) {
           <Input
             id="assistant-question"
             name="question"
-            placeholder="ayın 13'ünden beri ne kadar harcadım?"
+            value={soru}
+            onChange={(e) => setSoru(e.target.value)}
+            placeholder="Örn. bu ay markete ne kadar harcadım?"
             className="h-10 min-w-[12rem] flex-1"
             autoComplete="off"
+            maxLength={300}
           />
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || soru.trim() === ""}>
             {pending ? "Bakıyorum…" : "Sor"}
           </Button>
         </form>
 
-        {state === null && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <span className="t-meta">Örnek:</span>
-            {ORNEKLER.map((o) => (
-              <span
-                key={o}
-                className="border-hairline text-muted-foreground border px-2 py-0.5 text-[12px]"
-              >
-                {o}
-              </span>
-            ))}
-          </div>
-        )}
+        {state === null && <Oneriler baslik="Örnek:" sorular={ORNEKLER} onSec={sor} disabled={pending} />}
 
-        {state?.ok === false && (
-          <div
-            role="status"
-            className="border-destructive text-foreground border px-3 py-2 text-[13px] leading-snug"
-          >
-            {state.reason === "empty" ? (
-              <>Bir soru yaz.</>
-            ) : (
-              <>
-                <strong>Bu soruyu anlayamadım.</strong>
-                <span className="text-muted-foreground block">
-                  Sorunun bir <strong>zaman</strong> (ayın 13&apos;ünden
-                  beri, bu ay, geçen hafta, son 3 ayda, ağustosta) ve bir{" "}
-                  <strong>ölçü</strong> (harcama, gelir, net) içermesi
-                  gerekiyor. Yanlış anlayıp emin bir rakam vermektense
-                  anlamadığımı söylüyorum.
-                </span>
-              </>
-            )}
-          </div>
-        )}
-
-        {state?.ok && <Rapor report={state.report} baseCurrency={baseCurrency} />}
+        {state && <Cevap view={state} onSec={sor} pending={pending} />}
       </div>
     </section>
   );
 }
 
-function Rapor({
-  report,
-  baseCurrency,
+function Cevap({
+  view,
+  onSec,
+  pending,
 }: {
-  report: NonNullable<Extract<AssistantResult, { ok: true }>["report"]>;
-  baseCurrency: string;
+  view: AssistantView;
+  onSec: (q: string) => void;
+  pending: boolean;
 }) {
-  const negatif = Number(report.total) < 0;
-
+  const uyari = view.kind === "unparsed" || view.kind === "notFound";
   return (
-    <div className="space-y-3">
-      {/*
-        Anlaşılan aralık en üstte ve tam tarihlerle: "ayın 13'ünden beri"
-        ifadesinin neye karşılık geldiğini kullanıcı görmeden rakama
-        güvenemez.
-      */}
-      <p className="t-meta">
-        {BASLIK[report.metric]}
-        {report.categoryQuery && ` · ${report.categoryQuery}`} ·{" "}
-        <strong className="text-foreground">{report.rangeLabel}</strong> (
-        {formatDate(report.fromLabel)} – {formatDate(report.toLabel)})
-      </p>
-
-      {/*
-        "En çok nereye harcadım" sorulduysa cevabı KALEM ADIDIR; rakamı tek
-        başına göstermek soruyu cevapsız bırakırdı.
-      */}
-      {report.topCategory ? (
-        <div>
-          <p className="t-figure text-[32px] leading-none font-extrabold">
-            {report.topCategory}
-          </p>
-          <p className="t-meta mt-1">
-            {formatMoney(report.lines[0].amount, baseCurrency)} ·{" "}
-            {formatPercent(report.lines[0].share, { digits: 0 })} · toplam{" "}
-            {formatMoney(report.total, baseCurrency)}
-          </p>
-        </div>
-      ) : (
-        <p
-          className={cn(
-            "t-figure text-[32px] leading-none font-extrabold tabular-nums",
-            negatif && "text-destructive"
-          )}
-        >
-          {formatMoney(report.total, baseCurrency)}
-        </p>
-      )}
-
-      <p className="t-meta">
-        {report.count} kayıt · {report.dayCount} gün · günlük ortalama{" "}
-        {formatMoney(report.dailyAverage, baseCurrency)}
-        {report.metric === "net" && (
-          <>
-            {" "}
-            · gelir {formatMoney(report.incomeTotal, baseCurrency)} · gider{" "}
-            {formatMoney(report.expenseTotal, baseCurrency)}
-          </>
+    <div role="status" aria-live="polite" className={cn("space-y-2", pending && "opacity-60")}>
+      <p
+        className={cn(
+          "text-[15px] leading-relaxed",
+          uyari && "border-destructive border-l-2 pl-3"
+        )}
+      >
+        {view.parts.map((p, i) =>
+          p.b ? (
+            <strong key={i} className="font-bold tabular-nums">
+              {p.t}
+            </strong>
+          ) : (
+            <span key={i}>{p.t}</span>
+          )
         )}
       </p>
 
-      {report.lines.length > 0 && (
-        <ul className="divide-hairline border-border border">
-          {report.lines.map((l) => (
-            <li
-              key={l.categoryName}
-              className="flex items-center justify-between gap-3 px-3 py-2"
-            >
-              <span className="min-w-0 truncate text-[13px]">
-                {l.categoryName}
+      {view.rows.length > 0 && (
+        <ul className="divide-hairline border-border divide-y border">
+          {view.rows.map((r, i) => (
+            <li key={`${r.label}-${i}`} className="flex items-center justify-between gap-3 px-3 py-2">
+              <span className="min-w-0">
+                <span className="block truncate text-[13px]">{r.label}</span>
+                {r.detail && <span className="t-meta block truncate">{r.detail}</span>}
               </span>
-              <span className="flex flex-none items-baseline gap-2 tabular-nums">
-                <span className="text-muted-foreground text-[12px]">
-                  {formatPercent(l.share, { digits: 0 })}
-                </span>
-                <span className="text-[13px] font-semibold">
-                  {formatMoney(l.amount, baseCurrency)}
-                </span>
-              </span>
+              <span className="flex-none text-[13px] font-semibold tabular-nums">{r.amount}</span>
             </li>
           ))}
+          {view.more > 0 && <li className="t-meta px-3 py-2">+{view.more} kalem daha</li>}
         </ul>
       )}
 
-      {report.count === 0 ? (
-        <p className="t-meta">Bu aralıkta kayıt yok.</p>
-      ) : (
+      {view.context.length > 0 && <p className="t-meta">{view.context.join(" · ")}</p>}
+
+      {view.link && (
         <Link
-          href={report.detailsHref}
+          href={view.link.href}
           className="text-accent-text inline-block text-[13px] font-semibold underline underline-offset-4"
         >
-          Bu aralığın kayıtlarını aç
+          {view.link.label}
         </Link>
       )}
+
+      {view.suggestions.length > 0 && (
+        <Oneriler baslik="Şunları sorabilirsin:" sorular={view.suggestions} onSec={onSec} disabled={pending} />
+      )}
+    </div>
+  );
+}
+
+function Oneriler({
+  baslik,
+  sorular,
+  onSec,
+  disabled,
+}: {
+  baslik: string;
+  sorular: string[];
+  onSec: (q: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+      <span className="t-meta">{baslik}</span>
+      {sorular.map((o) => (
+        <button
+          key={o}
+          type="button"
+          disabled={disabled}
+          onClick={() => onSec(o)}
+          className="border-hairline text-muted-foreground hover:border-border hover:text-foreground border px-2 py-1 text-left text-[12px] transition-colors disabled:opacity-50"
+        >
+          {o}
+        </button>
+      ))}
     </div>
   );
 }

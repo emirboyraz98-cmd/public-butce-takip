@@ -7,7 +7,16 @@ import { prisma } from "@/lib/prisma";
 import { createMonthlyBaseConverter } from "@/lib/fx/monthlyBase";
 import { monthSequence } from "@/lib/date/months";
 import { toMonthKeyUtc } from "@/lib/date/utc";
-import { answerQuestion, type AnswerEntry } from "@/lib/assistant/answer";
+import { shiftMonth } from "@/lib/cashflow/salaryTiming";
+import { installmentForMonth } from "@/lib/loans/schedule";
+import {
+  answerQuestion,
+  EXAMPLES,
+  type Answer,
+  type Movement,
+  type Part,
+  type Row,
+} from "@/lib/assistant/answer";
 import { parseQuestion } from "@/lib/assistant/parseQuestion";
 
 /**
@@ -15,144 +24,199 @@ import { parseQuestion } from "@/lib/assistant/parseQuestion";
  *
  * Dışarıya hiçbir istek gitmiyor, API anahtarı yok: soru kural tabanlı
  * çözümleniyor (bkz. lib/assistant/parseQuestion) ve kullanıcının kendi
- * verisiyle cevaplanıyor.
+ * verisiyle cevaplanıyor (lib/assistant/answer).
+ *
+ * Burada yalnızca veri hazırlanıyor: gelir ve gider kayıtları, hesaplanmış
+ * maaş (ödendiği aya yazılarak) ve kredi taksitleri tek bir "hareket"
+ * listesine çevriliyor, hepsi baz para birimine.
  */
 
-export type AssistantLine = {
-  categoryName: string;
-  amount: string;
-  share: number;
+export type AssistantView = {
+  kind: Answer["kind"] | "unparsed";
+  parts: Part[];
+  rows: Row[];
+  more: number;
+  context: string[];
+  link: { href: string; label: string } | null;
+  suggestions: string[];
 };
 
-export type AssistantReport = {
-  metric: "expense" | "income" | "net";
-  fromLabel: string;
-  toLabel: string;
-  rangeLabel: string;
-  categoryQuery: string | null;
-  total: string;
-  expenseTotal: string;
-  incomeTotal: string;
-  dailyAverage: string;
-  lines: AssistantLine[];
-  count: number;
-  dayCount: number;
-  baseCurrency: string;
-  /** "En çok nereye harcadım" sorulduysa en büyük kalem öne çıkar. */
-  topCategory: string | null;
-  /** Giderler sayfasında aynı aralığı açan bağlantı. */
-  detailsHref: string;
-};
-
-export type AssistantResult =
-  | { ok: true; report: AssistantReport }
-  | { ok: false; reason: "unparsed" | "empty" };
+function gorunum(a: Partial<AssistantView> & Pick<AssistantView, "kind" | "parts">): AssistantView {
+  return { rows: [], more: 0, context: [], link: null, suggestions: [], ...a };
+}
 
 export async function askAssistant(
-  _prev: AssistantResult | null,
+  _prev: AssistantView | null,
   formData: FormData
-): Promise<AssistantResult> {
+): Promise<AssistantView> {
   const session = await auth();
   const userId = session?.user?.id;
-  if (!userId) return { ok: false, reason: "empty" };
+  if (!userId) return gorunum({ kind: "unparsed", parts: [{ t: "Oturum bulunamadı." }] });
 
-  const raw = (formData.get("question") as string | null) ?? "";
-  if (raw.trim() === "") return { ok: false, reason: "empty" };
+  const raw = ((formData.get("question") as string | null) ?? "").slice(0, 300);
+  if (raw.trim() === "") {
+    return gorunum({ kind: "unparsed", parts: [{ t: "Bir soru yaz ya da aşağıdaki örneklerden birini seç." }], suggestions: EXAMPLES });
+  }
 
-  const [user, expenseCategories, expenses, incomes] = await Promise.all([
+  const [user, expenseCategories, incomeCategories, expenses, incomes, loans, salaryResults] = await Promise.all([
     prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { baseCurrency: true },
+      select: { baseCurrency: true, salaryPaymentMonthOffset: true, creditCardMonthlyLimit: true },
     }),
     prisma.expenseCategory.findMany({
       where: { userId },
-      select: { name: true },
+      select: { name: true, archived: true, monthlyLimit: true },
     }),
-    prisma.expense.findMany({
+    prisma.incomeCategory.findMany({ where: { userId }, select: { name: true } }),
+    prisma.expense.findMany({ where: { userId }, include: { category: { select: { name: true } } } }),
+    prisma.incomeEntry.findMany({ where: { userId }, include: { category: { select: { name: true } } } }),
+    prisma.loan.findMany({
       where: { userId },
-      include: { category: { select: { name: true } } },
+      include: { periods: { orderBy: { effectiveFrom: "asc" } } },
     }),
-    prisma.incomeEntry.findMany({
-      where: { userId },
-      include: { category: { select: { name: true } } },
-    }),
+    prisma.monthlySalaryResult.findMany({ where: { userId } }),
   ]);
 
-  const question = parseQuestion(
-    raw,
-    new Date(),
-    expenseCategories.map((c) => c.name)
-  );
-  if (!question) return { ok: false, reason: "unparsed" };
+  const now = new Date();
+  const question = parseQuestion(raw, now, {
+    expenseCategories: expenseCategories.map((c) => c.name),
+    incomeCategories: [...incomeCategories.map((c) => c.name), "Maaş"],
+    loans: loans.map((l) => l.name),
+  });
+  if (!question) {
+    return gorunum({
+      kind: "unparsed",
+      parts: [
+        { t: "Bu soruyu anlayamadım. ", b: true },
+        { t: "Harcama, gelir, birikim, bütçe ya da karşılaştırma sorabilirsin." },
+      ],
+      suggestions: EXAMPLES,
+    });
+  }
 
   /*
-   * Kur, tutarın AİT OLDUĞU ayın TCMB ortalamasıyla uygulanıyor — sitenin
-   * geri kalanıyla aynı taban. Bugünün kuruyla çevirmek, geçmiş aylardaki
-   * harcamayı kur yükseldikçe büyük gösterirdi.
+   * Kur, tutarın AİT OLDUĞU ayın TCMB ortalamasıyla — sitenin geri kalanıyla
+   * aynı taban. Aralık, en eski kayıttan bir yıl sonrasına kadar: sorunun
+   * hangi döneme düşeceği çözümlemeden sonra belli oluyor, maaş ve kredi
+   * de ileri aylara uzanabiliyor.
    */
-  const months = monthSequence(
-    question.from.slice(0, 7),
-    question.to.slice(0, 7)
-  );
+  const buAy = toMonthKeyUtc(now);
+  const ufuk = shiftMonth(buAy, 12);
+  const ilkAylar = [
+    ...expenses.map((e) => toMonthKeyUtc(e.date)),
+    ...incomes.map((e) => toMonthKeyUtc(e.date)),
+    ...loans.map((l) => l.startMonth),
+    ...salaryResults.map((r) => r.month),
+  ];
+  const ilkAy = ilkAylar.reduce((a, m) => (m < a ? m : a), buAy);
   const toBase = await createMonthlyBaseConverter({
-    months,
+    months: monthSequence(ilkAy, ufuk),
     baseCurrency: user.baseCurrency,
   });
 
-  const cevir = (
-    amount: Decimal.Value,
-    currency: string,
-    date: Date
-  ): Decimal => toBase(new Decimal(amount), currency, toMonthKeyUtc(date));
+  const cevir = (amount: Decimal.Value, currency: string, month: string) =>
+    toBase(new Decimal(amount), currency, month);
 
-  const giderGirdileri: AnswerEntry[] = expenses.map((e) => ({
-    date: e.date.toISOString().slice(0, 10),
-    categoryName: e.category.name,
-    amountInBase: cevir(e.amount.toString(), e.currency, e.date),
-    frequency: e.frequency,
-    recurrenceEndMonth: e.recurrenceEndMonth,
-  }));
+  const movements: Movement[] = [];
 
-  const gelirGirdileri: AnswerEntry[] = incomes.map((e) => ({
-    date: e.date.toISOString().slice(0, 10),
-    categoryName: e.category.name,
-    amountInBase: cevir(e.amount.toString(), e.currency, e.date),
-    frequency: e.frequency,
-    recurrenceEndMonth: e.recurrenceEndMonth,
-  }));
+  for (const e of expenses) {
+    const ay = toMonthKeyUtc(e.date);
+    const tutar = e.amount.toString();
+    movements.push({
+      date: e.date.toISOString().slice(0, 10),
+      direction: "out",
+      categoryName: e.category.name,
+      note: e.note,
+      source: e.kind === "CREDIT_CARD" ? "card" : "cash",
+      paymentMonth: e.paymentMonth,
+      amount: cevir(tutar, e.currency, ay),
+      frequency: e.frequency,
+      recurrenceEndMonth: e.recurrenceEndMonth,
+      // Yabancı paralı aylık kayıt her ay kendi ayının kuruyla.
+      amountForMonth:
+        e.frequency === "MONTHLY" && e.currency !== user.baseCurrency
+          ? (m) => cevir(tutar, e.currency, m)
+          : undefined,
+    });
+  }
 
-  const report = answerQuestion({
+  for (const e of incomes) {
+    const ay = toMonthKeyUtc(e.date);
+    const tutar = e.amount.toString();
+    movements.push({
+      date: e.date.toISOString().slice(0, 10),
+      direction: "in",
+      categoryName: e.category.name,
+      note: e.note,
+      source: "income",
+      amount: cevir(tutar, e.currency, ay),
+      frequency: e.frequency,
+      recurrenceEndMonth: e.recurrenceEndMonth,
+      amountForMonth:
+        e.frequency === "MONTHLY" && e.currency !== user.baseCurrency
+          ? (m) => cevir(tutar, e.currency, m)
+          : undefined,
+    });
+  }
+
+  /*
+   * Maaş, Genel Bakış'taki gibi ÖDENDİĞİ aya yazılıyor (hak ediş +
+   * gecikme) ve HAK EDİLDİĞİ ayın kuruyla çevriliyor; ödeme ayının kuruyla
+   * çevirmek aynı kur farkını iki kez uygulardı. Gün bilinmiyor; ayın 1'i.
+   */
+  for (const r of salaryResults) {
+    const odemeAyi = shiftMonth(r.month, user.salaryPaymentMonthOffset);
+    movements.push({
+      date: `${odemeAyi}-01`,
+      direction: "in",
+      categoryName: "Maaş",
+      note: null,
+      source: "salary",
+      amount: cevir((r.actualAmount ?? r.total).toString(), r.currency, r.month),
+      frequency: "ONE_TIME",
+      accrualMonth: r.month,
+    });
+  }
+
+  // Kredi taksitleri: her ay, ayın 1'inde. Süresiz kredi bir yıl ileriye kadar.
+  for (const loan of loans) {
+    const son = loan.endMonth && loan.endMonth < ufuk ? loan.endMonth : ufuk;
+    const plan = {
+      name: loan.name,
+      currency: loan.currency,
+      startMonth: loan.startMonth,
+      endMonth: loan.endMonth,
+      periods: loan.periods.map((p) => ({ effectiveFrom: p.effectiveFrom, amount: p.amount.toString() })),
+    };
+    for (const ay of monthSequence(loan.startMonth, son)) {
+      const taksit = installmentForMonth(plan, ay);
+      if (!taksit) continue;
+      movements.push({
+        date: `${ay}-01`,
+        direction: "out",
+        categoryName: loan.name,
+        note: null,
+        source: "loan",
+        amount: cevir(taksit.toString(), loan.currency, ay),
+        frequency: "ONE_TIME",
+      });
+    }
+  }
+
+  const answer = answerQuestion({
     question,
-    expenses: giderGirdileri,
-    incomes: gelirGirdileri,
+    movements,
+    budgets: expenseCategories
+      .filter((c) => !c.archived)
+      .map((c) => ({
+        categoryName: c.name,
+        limit: c.monthlyLimit === null ? null : new Decimal(c.monthlyLimit.toString()),
+      })),
+    cardLimit:
+      user.creditCardMonthlyLimit === null ? null : new Decimal(user.creditCardMonthlyLimit.toString()),
+    currency: user.baseCurrency,
+    now,
   });
 
-  // Decimal sunucu sınırını geçemez; metne çevriliyor.
-  return {
-    ok: true,
-    report: {
-      metric: report.metric,
-      fromLabel: report.from,
-      toLabel: report.to,
-      rangeLabel: report.rangeLabel,
-      categoryQuery: report.categoryQuery,
-      total: report.total.toFixed(2),
-      expenseTotal: report.expenseTotal.toFixed(2),
-      incomeTotal: report.incomeTotal.toFixed(2),
-      dailyAverage: report.total.div(report.dayCount).toFixed(2),
-      lines: report.lines.slice(0, 8).map((l) => ({
-        categoryName: l.categoryName,
-        amount: l.amount.toFixed(2),
-        share: l.share,
-      })),
-      count: report.count,
-      dayCount: report.dayCount,
-      baseCurrency: user.baseCurrency,
-      topCategory:
-        question.wantsTop && report.lines.length > 0
-          ? report.lines[0].categoryName
-          : null,
-      detailsHref: `/expenses?from=${report.from}&to=${report.to}`,
-    },
-  };
+  return gorunum(answer);
 }
